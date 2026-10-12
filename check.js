@@ -59,8 +59,10 @@ function checkEvidence(root, plan, { runTests }) {
     if (t.status !== 'done' && !(t.status === 'blocked' && t.check)) continue;
     const problems = [];
     const evidence = evidenceOf(t.tech);
+    const refs = [];
     for (const ev of evidence) {
       const hits = resolve(root, files, ev);
+      refs.push({ token: ev.token, path: ev.path, file: hits && hits.length === 1 && !/[*?]/.test(ev.path) ? hits[0] : null, from: ev.from, to: ev.to, found: !!hits });
       if (!hits) { problems.push(`${ev.path} not found`); continue; }
       if (ev.from && hits.length === 1) {
         let n = 0;
@@ -69,7 +71,7 @@ function checkEvidence(root, plan, { runTests }) {
       }
       if (runTests) for (const h of hits.filter(f => /^test\/.+\.test\.js$/.test(f))) if (!runTest(h)) problems.push(`${h} fails`);
     }
-    results[t.id] = { task: t, evidence: evidence.length, problems };
+    results[t.id] = { task: t, evidence: evidence.length, problems, refs };
   }
   return results;
 }

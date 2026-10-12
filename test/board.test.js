@@ -52,7 +52,7 @@ test('the state carries components with counts, edges, last commit and evidence'
   const s = board.build(lib.locate(dir));
   assert.equal(s.components.length, 2);
   const ingest = s.components.find(c => c.id === 'ingest');
-  assert.deepEqual(ingest.counts, { done: 1, active: 0, blocked: 0, open: 1, total: 2 });
+  assert.deepEqual(ingest.counts, { done: 1, active: 0, blocked: 0, open: 1, planned: 1, roadmap: 0, total: 2 });
   assert.deepEqual(ingest.needs, ['engine']);
   assert.equal(ingest.tech, 'webhook and broker ingress');
   assert.match(ingest.lastCommit.subject, /first/);
@@ -165,4 +165,90 @@ test('the server answers the page, the state and a first SSE event, and a change
     assert.ok(pushed, 'the new component arrived over SSE');
     reader.cancel();
   } finally { server.close(); }
+});
+
+test('open tasks split into planned and roadmap: the from: line is read, and the summary counts every stage', () => {
+  const dir = repo();
+  fs.writeFileSync(path.join(dir, 'PLAN.md'), PLAN.replace('- [ ] Run steps {#engine-core}', '- [ ] Run steps {#engine-core}\n  from: roadmap\n- [ ] Retry steps {#engine-retry}\n  from: agent'));
+  const s = board.build(lib.locate(dir));
+  const t = id => s.tasks.find(x => x.id === id);
+  assert.equal(t('engine-core').from, 'roadmap');
+  assert.equal(t('engine-core').stage, 'roadmap');
+  assert.equal(t('engine-retry').stage, 'planned');
+  assert.equal(t('ingest-history').stage, 'done');
+  assert.equal(t('engine-core').line, 16, 'the 1-based line of the task in PLAN.md');
+  assert.deepEqual(s.summary, { total: 4, done: 1, active: 0, blocked: 0, planned: 2, roadmap: 1 });
+  assert.deepEqual(s.components.find(c => c.id === 'engine').counts, { done: 0, active: 0, blocked: 0, open: 2, planned: 1, roadmap: 1, total: 2 });
+});
+
+test('a ticked task names the commit that ticked it, and its evidence resolves to files', () => {
+  const dir = repo();
+  const g = a => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
+  fs.mkdirSync(path.join(dir, 'src', 'ingest'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'src', 'ingest', 'webhook.js'), 'x\n');
+  fs.writeFileSync(path.join(dir, 'PLAN.md'), PLAN.replace('- [ ] Accept webhooks', '- [x] Accept webhooks'));
+  g(['add', '.']); g(['commit', '-q', '-m', 'Tick the webhook']);
+  const s = board.build(lib.locate(dir));
+  const t = s.tasks.find(x => x.id === 'ingest-webhook');
+  assert.equal(t.tick.subject, 'Tick the webhook');
+  assert.match(s.tasks.find(x => x.id === 'ingest-history').tick.subject, /first/, 'a task added as done counts from the commit that added it');
+  assert.deepEqual(t.refs.map(r => r.file), ['src/ingest/webhook.js']);
+  assert.equal(s.tasks.find(x => x.id === 'engine-core').tick, null);
+});
+
+test('the capacity: one agent per free component, coupled components held back, roadmap counted apart', () => {
+  const comp = (id, needs = [], links = []) => ({ id, needs, links, agents: [], claims: [], conflict: null, counts: { done: 1, total: 2 } });
+  const task = (id, component, stage) => ({ id, component, stage, claim: null });
+  const components = [comp('a'), comp('b', ['a']), comp('c'), comp('d', [], ['c']), comp('e')];
+  const tasks = [task('a1', 'a', 'planned'), task('a2', 'a', 'planned'), task('b1', 'b', 'planned'), task('c1', 'c', 'planned'), task('d1', 'd', 'planned'), task('e1', 'e', 'roadmap')];
+  const cap = board.capacity(components, tasks, []);
+  assert.deepEqual(cap.lanes.map(l => l.component), ['a', 'c']);
+  assert.deepEqual(cap.held.map(h => [h.component, h.reason, h.on]).sort(), [['b', 'coupled', 'a'], ['d', 'coupled', 'c']]);
+  assert.equal(cap.suggested, 2);
+  assert.deepEqual(cap.roadmap.lanes.map(l => l.component), ['e']);
+  // an agent in a: b is next to a busy component, c and e stay free
+  components[0].agents = ['claude#x'];
+  const busy = board.capacity(components, tasks, [{ agent: 'claude#x' }]);
+  assert.deepEqual(busy.lanes.map(l => l.component), ['c']);
+  assert.deepEqual(busy.held.find(h => h.component === 'b'), { component: 'b', planned: 1, reason: 'busy', on: 'a' });
+  assert.equal(busy.suggested, 2);
+  // a component whose needs have not started waits
+  components[0].agents = []; components[0].counts = { done: 0, total: 2 };
+  assert.equal(board.capacity(components, tasks, []).held.find(h => h.component === 'b').reason, 'waits');
+});
+
+test('a live session changing files no component owns is reported as work outside the plan', () => {
+  const dir = repo();
+  const { stateDir } = lib.locate(dir);
+  const now = Date.now();
+  touch(stateDir, 'aaaa1111', 'tools/script.js', [], now - 10e3);
+  touch(stateDir, 'aaaa1111', 'PLAN.md', [], now - 5e3);
+  const s = board.build(lib.locate(dir), { now });
+  const out = s.conflicts.filter(c => c.kind === 'outside');
+  assert.equal(out.length, 1);
+  assert.deepEqual(out[0].files, ['tools/script.js'], 'PLAN.md is everybody\'s file');
+});
+
+test('the web address of the origin remote', () => {
+  const dir = repo();
+  const g = a => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
+  assert.equal(board.webOf(dir), null);
+  g(['remote', 'add', 'origin', 'git@github.com:acme/widgets.git']);
+  assert.deepEqual(board.webOf(dir), { base: 'https://github.com/acme/widgets', commit: '/commit/' });
+  g(['remote', 'set-url', 'origin', 'https://gitlab.example.com/team/app.git']);
+  assert.deepEqual(board.webOf(dir), { base: 'https://gitlab.example.com/team/app', commit: '/-/commit/' });
+});
+
+test('setup copies agentviz into .agentviz and points the hooks and scripts there', () => {
+  const dir = repo();
+  fs.writeFileSync(path.join(dir, 'package.json'), '{"name":"x"}\n');
+  const r = spawnSync(process.execPath, [path.join(__dirname, '..', 'cli.js'), 'setup', '--no-board'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  for (const f of ['cli.js', 'board.html', 'hook.js', 'lib.js', 'package.json']) assert.ok(fs.existsSync(path.join(dir, '.agentviz', f)), f);
+  assert.match(fs.readFileSync(path.join(dir, '.claude', 'settings.json'), 'utf8'), /\$CLAUDE_PROJECT_DIR\/\.agentviz\/hook\.js/);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).scripts['plan:board'], 'node .agentviz/cli.js board');
+  const again = spawnSync(process.execPath, [path.join(dir, '.agentviz', 'cli.js'), 'setup', '--no-board'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(again.status, 0, again.stderr);
+  const hooks = fs.readFileSync(path.join(dir, '.claude', 'settings.json'), 'utf8').match(/agentviz\/hook\.js/g);
+  assert.equal(hooks.length, 5, 'running setup again adds no second hook');
 });

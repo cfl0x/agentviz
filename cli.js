@@ -3,6 +3,9 @@
 /**
  * agentviz - see what your coding agents actually do: the plan convention for parallel agents, as one command for any git repository.
  *
+ *   agentviz setup    the one step: copies agentviz into <repo>/.agentviz (committed with the repository, so the whole
+ *                      team has it), runs init from there and opens the board           [--no-board] [--port n]
+ *                      npx -y github:cfl0x/agentviz setup
  *   agentviz init     writes the convention into CLAUDE.md and AGENTS.md, a PLAN.md skeleton when none exists, the
  *                      Claude Code hooks into .claude/settings.json and the npm scripts into package.json (when present)
  *   agentviz board    the live view (agentviz/board.js)         [--port n] [--open] [--tests]
@@ -63,6 +66,33 @@ function upsertSection(file, marker, text) {
   return true;
 }
 
+/**
+ * The one-step setup. A copy inside the repository keeps the hooks working: they point at
+ * $CLAUDE_PROJECT_DIR/.agentviz/hook.js, which neither a cleaned npx cache nor a missing global install can break, and
+ * every clone of the repository has it. Running setup again updates the copy.
+ */
+function setup() {
+  const lib = require('./lib');
+  const { spawnSync } = require('child_process');
+  const loc = lib.locate(process.cwd());
+  if (!loc) { console.error('agentviz setup: run it inside a git repository'); process.exit(2); }
+  const here = path.resolve(__dirname);
+  const dest = path.join(loc.root, '.agentviz');
+  const pkg = require('./package.json');
+  if (path.resolve(dest).toLowerCase() !== here.toLowerCase()) {
+    fs.mkdirSync(dest, { recursive: true });
+    for (const f of [...new Set([...pkg.files, 'package.json'])]) fs.copyFileSync(path.join(here, f), path.join(dest, f));
+    console.log(`.agentviz/: agentviz ${pkg.version} copied into the repository (commit it, so every clone has the hooks)`);
+  }
+  const cli = path.join(dest, 'cli.js');
+  const r = spawnSync(process.execPath, [cli, 'init'], { cwd: process.cwd(), stdio: 'inherit' });
+  if (r.status) process.exit(r.status);
+  if (process.argv.includes('--no-board')) return;
+  const port = process.argv.includes('--port') ? ['--port', process.argv[process.argv.indexOf('--port') + 1]] : [];
+  console.log('\nStarting the board (Ctrl+C stops it; start it again with `node .agentviz/cli.js board --open`).');
+  spawnSync(process.execPath, [cli, 'board', '--open', ...port], { cwd: process.cwd(), stdio: 'inherit' });
+}
+
 function init() {
   const lib = require('./lib');
   const loc = lib.locate(process.cwd());
@@ -100,16 +130,18 @@ function init() {
     if (changed) { fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n'); out.push('package.json: scripts plan:board, plan:check, plan:check:tests'); }
   }
   console.log(out.length ? out.join('\n') : 'nothing to do: already initialised');
-  console.log('\nNext: ask your agent to backfill PLAN.md from the code (every [x] must cite its evidence), then `npm run plan:board`.');
+  const board = fs.existsSync(pkgPath) ? 'npm run plan:board' : inside ? `node ${rel}/cli.js board --open` : 'agentviz board --open';
+  console.log(`\nNext: ask your agent to backfill PLAN.md from the code (every [x] must cite its evidence), then \`${board}\`.`);
 }
 
 switch (cmd) {
+  case 'setup': setup(); break;
   case 'init': init(); break;
   case 'board': require('./board').start(); break;
   case 'check': require('./check').main(); break;
   case 'hook': require('./hook'); break;
   case '--version': case '-v': console.log(require('./package.json').version); break;
   default:
-    console.log('usage: agentviz <init|board|check|hook> [options]\n  init   install the convention, hooks and npm scripts into this repository\n  board  live view            --port n  --open  --tests\n  check  evidence and claims  --write  --tests  --json');
+    console.log('usage: agentviz <setup|init|board|check|hook> [options]\n  setup  one step: copy agentviz into .agentviz/, install it and open the board   --no-board  --port n\n  init   install the convention, hooks and npm scripts into this repository\n  board  live view            --port n  --open  --tests\n  check  evidence and claims  --write  --tests  --json');
     process.exit(cmd ? 1 : 0);
 }

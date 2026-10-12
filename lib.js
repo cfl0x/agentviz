@@ -61,7 +61,7 @@ function parsePlan(text) {
     let m;
     if ((m = line.match(NODE_RE))) { inDecisions = false; comp = { id: m[2], title: m[1], files: [] }; components.push(comp); task = null; return; }
     if (inDecisions) return;
-    if ((m = line.match(TASK_RE))) { task = { id: m[5], title: m[4], component: comp?.id || null, status: CHAR_STATUS[m[2]], line: i, tech: '', by: '', check: '' }; tasks.push(task); return; }
+    if ((m = line.match(TASK_RE))) { task = { id: m[5], title: m[4], component: comp?.id || null, status: CHAR_STATUS[m[2]], line: i, tech: '', by: '', from: '', horizon: '', check: '' }; tasks.push(task); return; }
     if ((m = line.match(FILES_RE))) { if (comp) comp.files = m[1].split(',').map(s => s.trim()).filter(Boolean); return; }
     if (task && (m = line.match(SUB_RE))) { const k = m[1].toLowerCase(); if (k in task) task[k] = m[2].trim(); return; }
     if (line.trim() && !/^\s/.test(line)) task = null;

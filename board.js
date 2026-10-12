@@ -61,6 +61,79 @@ function lastCommitFor(root, files) {
   return { hash, subject, at: Number(ct) * 1000 };
 }
 
+/**
+ * The commit that last ticked each task: one `git log -p` over PLAN.md, newest first. A commit counts for a task when it
+ * adds the task's line as [x] and either removes it with another status or adds the task new. Cached per HEAD.
+ */
+function tickCommits(root, cache) {
+  const head = git(root, ['rev-parse', 'HEAD']).trim();
+  if (!head) return {};
+  if (cache.head === head && cache.ticks) return cache.ticks;
+  const out = git(root, ['log', '-n', '500', '--format=%x1e%h%x1f%ct%x1f%s', '-p', '--unified=0', '--no-color', '--', 'PLAN.md']);
+  const ticks = {};
+  const LINE = /^([+-])\s*[-*]\s+\[( |x|X|~|!)\]\s+.*?\{#([a-z0-9][a-z0-9-]*)\}\s*$/gim;
+  for (const chunk of out.split('\x1e').slice(1)) {
+    const nl = chunk.indexOf('\n');
+    const [hash, ct, subject] = chunk.slice(0, nl < 0 ? chunk.length : nl).split('\x1f');
+    const removed = {}, added = {};
+    for (const m of chunk.slice(nl < 0 ? chunk.length : nl).matchAll(LINE)) (m[1] === '+' ? added : removed)[m[3]] = m[2].toLowerCase();
+    for (const [id, ch] of Object.entries(added)) if (ch === 'x' && !ticks[id] && removed[id] !== 'x') ticks[id] = { hash, at: Number(ct) * 1000, subject };
+  }
+  cache.head = head; cache.ticks = ticks;
+  return ticks;
+}
+
+/** The web address of the origin remote on GitHub, GitLab or Bitbucket: { base, commit } (commit is the path prefix), or null. */
+function webOf(root) {
+  const url = git(root, ['remote', 'get-url', 'origin']).trim();
+  const m = url.match(/^(?:https?:\/\/(?:[^@/]+@)?|ssh:\/\/git@|git@)([^/:]+)[/:](.+?)(?:\.git)?\/?$/);
+  if (!m || !/github|gitlab|bitbucket/i.test(m[1])) return null;
+  return { base: `https://${m[1]}/${m[2]}`, commit: /gitlab/i.test(m[1]) ? '/-/commit/' : /bitbucket/i.test(m[1]) ? '/commits/' : '/commit/' };
+}
+
+// ---------- plan status ----------
+
+/**
+ * Where a task stands: done, active (claimed), blocked, planned (open and meant for now: plain or `from: agent`) or
+ * roadmap (open, `from: roadmap`: intent for later, not part of the current scope).
+ */
+const stageOf = t => t.status === 'done' ? 'done' : t.status === 'active' ? 'active' : t.status === 'blocked' ? 'blocked' : t.from === 'roadmap' ? 'roadmap' : 'planned';
+
+/**
+ * How many agents can work at once without stepping on each other. Components own disjoint files, so each takes at most
+ * one agent. A component is a lane when it has planned, unclaimed work, nobody is in it, nothing there is in conflict, and
+ * every component it needs has started. Lanes are picked greedily (most planned work first); a candidate that shares a
+ * needs: or links: edge with a busy or already picked component is held back, because coupled components change the
+ * same surface. suggested = the agents running now + the lanes. `roadmap` repeats the count for roadmap tasks, for when
+ * nothing is planned for now.
+ */
+function capacity(components, tasks, live) {
+  const now = lanesFor(components, tasks, live, 'planned');
+  // nothing planned for now: what pulling roadmap items in would allow
+  return { ...now, roadmap: lanesFor(components, tasks, live, 'roadmap') };
+}
+
+function lanesFor(components, tasks, live, stage) {
+  const byId = Object.fromEntries(components.map(c => [c.id, c]));
+  const near = (a, b) => (byId[a] && (byId[a].needs.includes(b) || byId[a].links.includes(b))) || (byId[b] && (byId[b].needs.includes(a) || byId[b].links.includes(a)));
+  const busy = components.filter(c => c.agents.length || c.claims.length).map(c => c.id);
+  const taken = [...busy];
+  const lanes = [], held = [];
+  const cands = components.map(c => ({ c, open: tasks.filter(t => t.component === c.id && t.stage === stage && !t.claim) }))
+    .filter(x => x.open.length && !busy.includes(x.c.id))
+    .sort((a, b) => b.open.length - a.open.length || a.c.needs.length - b.c.needs.length);
+  for (const { c, open } of cands) {
+    const waits = c.needs.find(n => byId[n] && byId[n].counts.total && !byId[n].counts.done);
+    const conflict = c.conflict === 'high' || c.conflict === 'medium';
+    const near1 = taken.find(x => near(x, c.id));
+    if (waits) held.push({ component: c.id, planned: open.length, reason: 'waits', on: waits });
+    else if (conflict) held.push({ component: c.id, planned: open.length, reason: 'conflict' });
+    else if (near1) held.push({ component: c.id, planned: open.length, reason: busy.includes(near1) ? 'busy' : 'coupled', on: near1 });
+    else { lanes.push({ component: c.id, planned: open.length, next: open[0].id }); taken.push(c.id); }
+  }
+  return { running: live.length, busy, lanes, held, suggested: live.length + lanes.length };
+}
+
 // ---------- session names ----------
 
 /**
@@ -91,7 +164,7 @@ function sessionName(transcriptPath, sessionId) {
 
 // ---------- state ----------
 
-function build(loc, { runTests = false, now = Date.now(), gitCache = {} } = {}) {
+function build(loc, { runTests = false, now = Date.now(), gitCache = {}, tickCache = {} } = {}) {
   const { root, stateDir } = loc;
   let planText = '';
   try { planText = fs.readFileSync(path.join(root, 'PLAN.md'), 'utf8'); } catch { /* no plan */ }
@@ -102,10 +175,21 @@ function build(loc, { runTests = false, now = Date.now(), gitCache = {} } = {}) 
 
   // tasks by component with evidence
   const evidence = check.checkEvidence(root, plan, { runTests });
-  const tasks = plan.tasks.map(t => ({
-    id: t.id, title: t.title, component: t.component, status: t.status, tech: t.tech, by: t.by, from: t.from || '', check: t.check,
-    problems: evidence[t.id] ? evidence[t.id].problems : [], claim: view.statuses[t.id]?.status === 'active' ? view.statuses[t.id] : null,
-  }));
+  const ticks = tickCommits(root, tickCache);
+  const tasks = plan.tasks.map(t => {
+    const last = view.statuses[t.id];
+    const task = {
+      id: t.id, title: t.title, component: t.component, status: t.status, tech: t.tech, by: t.by, from: t.from || '', horizon: t.horizon || '', check: t.check, line: t.line + 1,
+      problems: evidence[t.id] ? evidence[t.id].problems : [],
+      refs: evidence[t.id] ? evidence[t.id].refs : check.evidenceOf(t.tech).map(e => ({ token: e.token, path: e.path, file: null, from: e.from, to: e.to })),
+      claim: last?.status === 'active' ? last : null,
+      // the session that last changed the status through the hooks (within the event window), and the commit that ticked it
+      changedBy: last ? { session: last.session, agent: last.by || null, status: last.status, at: last.at } : null,
+      tick: t.status === 'done' ? ticks[t.id] || null : null,
+    };
+    task.stage = stageOf(task);
+    return task;
+  });
 
   // sessions with their recent file activity (newest first) and whether they still exist:
   //   active  hook events within the lease (the agent is editing)
@@ -122,6 +206,7 @@ function build(loc, { runTests = false, now = Date.now(), gitCache = {} } = {}) 
       files: [...s.files].filter(([, at]) => now - at < ACTIVITY_WINDOW_MS).sort((a, b) => b[1] - a[1]).map(([file, at]) => ({ file, at, components: compOf(file) })),
       components: [...s.components], planned: [...s.planned],
       claims: view.claims.filter(c => c.session === s.id).map(c => c.task),
+      finished: Object.entries(view.statuses).filter(([, st]) => st.session === s.id && st.status === 'done').map(([task]) => task),
     };
   }).filter(s => s.alive || now - Math.max(s.lastAt, s.transcript?.at || 0) < ACTIVITY_WINDOW_MS).sort((a, b) => (a.state === 'active') === (b.state === 'active') ? b.lastAt - a.lastAt : a.state === 'active' ? -1 : 1);
 
@@ -145,6 +230,10 @@ function build(loc, { runTests = false, now = Date.now(), gitCache = {} } = {}) 
       else if (!s.planned.includes(c)) conflicts.push({ kind: 'unplanned', severity: 'low', component: c, agents: [s.agent], text: `${s.agent} changes #${c} without a claimed task there` });
     }
   }
+  for (const s of live) {
+    const outside = s.files.filter(f => now - f.at < lib.LEASE_MS && !f.components.length && f.file !== 'PLAN.md');
+    if (outside.length) conflicts.push({ kind: 'outside', severity: 'low', agents: [s.agent], files: outside.map(f => f.file), text: `${s.agent} changes ${outside.length === 1 ? outside[0].file : `${outside.length} files`} that no component of the plan owns` });
+  }
   for (const r of view.released) conflicts.push({ kind: 'released', severity: 'low', agents: [r.by], task: r.task, text: `#${r.task} fell back: ${r.by} ${r.reason}` });
 
   // components
@@ -156,7 +245,7 @@ function build(loc, { runTests = false, now = Date.now(), gitCache = {} } = {}) 
     return {
       id: c.id, title: c.title, tech: plan.tasks.length ? (planText.match(new RegExp(`\\{#${c.id}\\}\\s*\\n\\s*tech:\\s*(.*)`)) || [])[1] || '' : '',
       files: c.files, needs: planNeeds(planText, c.id, 'needs'), links: planNeeds(planText, c.id, 'links'),
-      counts: { done: ts.filter(t => t.status === 'done').length, active: ts.filter(t => t.status === 'active').length, blocked: ts.filter(t => t.status === 'blocked').length, open: ts.filter(t => t.status === 'pending').length, total: ts.length },
+      counts: { done: ts.filter(t => t.status === 'done').length, active: ts.filter(t => t.status === 'active').length, blocked: ts.filter(t => t.status === 'blocked').length, open: ts.filter(t => t.status === 'pending').length, planned: ts.filter(t => t.stage === 'planned').length, roadmap: ts.filter(t => t.stage === 'roadmap').length, total: ts.length },
       agents: live.filter(s => s.files.some(f => f.components.includes(c.id) && now - f.at < lib.LEASE_MS) || s.claims.some(k => ts.some(t => t.id === k))).map(s => s.agent),
       claims: ts.filter(t => t.claim).map(t => ({ task: t.id, by: t.claim.by })),
       uncommitted: changes.filter(ch => ch.components.includes(c.id)).length,
@@ -166,8 +255,15 @@ function build(loc, { runTests = false, now = Date.now(), gitCache = {} } = {}) 
     };
   });
 
+  const summary = { total: tasks.length };
+  for (const k of ['done', 'active', 'blocked', 'planned', 'roadmap']) summary[k] = tasks.filter(t => t.stage === k).length;
+  if (!('web' in tickCache)) tickCache.web = webOf(root);
+  const editor = (process.env.AGENTVIZ_EDITOR || 'vscode').trim();
+
   return {
     at: now, repo: path.basename(root), root, planPath: path.join(root, 'PLAN.md'), leaseMs: lib.LEASE_MS, testsRun: runTests,
+    web: tickCache.web, editor: /^(none|off|)$/i.test(editor) ? null : editor.replace(/[^a-z0-9+.-]/gi, ''),
+    summary, capacity: capacity(components, tasks, live),
     components, tasks, sessions, changes, conflicts, locks: lib.locksOf(stateDir).filter(l => l.expiresAt > now),
     decisions: (planText.split(/^## decisions\s*$/m)[1] || '').split('\n').filter(l => /^\s*[-*]\s+/.test(l)).map(l => l.replace(/^\s*[-*]\s+/, '')),
   };
@@ -184,14 +280,15 @@ function serve(loc, { port = PORT, runTests = RUN_TESTS, open = flag('--open'), 
   const page = path.join(__dirname, 'board.html');
   const clients = new Set();
   const gitCache = {};
-  let state = build(loc, { runTests, gitCache });
+  const tickCache = {};
+  let state = build(loc, { runTests, gitCache, tickCache });
   let lastJson = JSON.stringify(state);
 
   const refresh = (why) => {
     try {
       // the git cache is per refresh: a commit changes what "last commit" means
       for (const k of Object.keys(gitCache)) delete gitCache[k];
-      state = build(loc, { runTests, gitCache });
+      state = build(loc, { runTests, gitCache, tickCache });
       const json = JSON.stringify(state);
       if (json === lastJson) return;
       lastJson = json;
@@ -261,4 +358,4 @@ function start() {
 
 if (require.main === module) start();
 
-module.exports = { build, serve, start, workingTree, lastCommitFor, sessionName };
+module.exports = { build, serve, start, workingTree, lastCommitFor, sessionName, tickCommits, webOf, capacity, stageOf };

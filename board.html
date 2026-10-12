@@ -7,140 +7,214 @@
 <style>
   :root {
     --bg:#0e1116; --panel:#141821; --surface:#1a1f29; --raised:#202634; --line:#2a3140; --line-strong:#3a4356;
-    --text:#e8ebf1; --text-2:#aab2c3; --muted:#7d8699;
+    --text:#e8ebf1; --text-2:#aab2c3; --muted:#8b94a7;
     --done:#3fb950; --done-ink:#0a1a0f; --done-bg:#15291c;
     --work:#d9a62b; --work-ink:#1b1400; --work-bg:#2a2414;
-    --open:#7d8699; --bad:#f0574f; --bad-bg:#3a1c1b; --accent:#6ea8ff;
+    --plan:#6ea8ff; --plan-bg:#16243b; --road:#a495e8; --road-bg:#231f3a;
+    --open:#8b94a7; --bad:#f0574f; --bad-bg:#3a1c1b; --accent:#6ea8ff;
+    --edge:#7a8396; --edge-link:#566074;
     --shadow:0 6px 24px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.4);
     --r:8px; --r-lg:12px;
+    /* type scale: 12 meta · 14 body · 16 headings · 20 brand · 32 the plan's one number */
+    --fs-xs:12px; --fs-sm:14px; --fs-md:16px; --fs-lg:20px; --fs-xl:32px;
+    --mono:"Cascadia Code", "JetBrains Mono", ui-monospace, Consolas, monospace;
   }
   * { box-sizing:border-box }
   html { color-scheme:dark; scrollbar-color:var(--line-strong) var(--panel) }
   ::selection { background:#2c4a7a; color:#fff }
   ::-webkit-scrollbar { width:10px; height:10px } ::-webkit-scrollbar-thumb { background:var(--line-strong); border-radius:5px; border:2px solid var(--panel) } ::-webkit-scrollbar-track { background:var(--panel) }
-  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased }
+  body { margin:0; background:var(--bg); color:var(--text); font:var(--fs-sm)/1.5 "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased }
   button { font:inherit; color:inherit }
+  a { color:var(--accent); text-decoration:none } a:hover { text-decoration:underline; text-underline-offset:3px }
   :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:4px }
-  code, .mono { font-family:"Cascadia Code", "JetBrains Mono", ui-monospace, Consolas, monospace; font-size:13px }
+  code, .mono { font-family:var(--mono); font-size:var(--fs-xs) }
   h1, h2, h3 { margin:0; font-weight:600; text-wrap:balance }
+  [hidden] { display:none !important }
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap }
+  .empty { color:var(--muted); font-size:var(--fs-xs) }
+  .lnk { background:none; border:0; padding:0; color:var(--accent); cursor:pointer; text-align:left; font:inherit } .lnk:hover { text-decoration:underline; text-underline-offset:3px }
+  .outside { color:var(--work); font-style:normal }
 
   /* ---------- header ---------- */
   header { display:flex; align-items:center; gap:20px; height:56px; padding:0 20px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:5 }
   .brand { display:flex; align-items:center; gap:10px; min-width:0 }
   .brand svg { width:22px; height:22px; flex:none }
-  .brand h1 { font-size:18px; letter-spacing:-.01em; white-space:nowrap }
-  .brand .repo { color:var(--text-2); font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+  .brand h1 { font-size:var(--fs-lg); letter-spacing:-.01em; white-space:nowrap }
+  .brand .repo { color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
   .brand .repo b { color:var(--text); font-weight:600 }
   .stats { display:flex; gap:8px; flex-wrap:wrap }
-  .pill { display:inline-flex; align-items:center; gap:7px; height:28px; padding:0 11px; border-radius:999px; border:1px solid var(--line); background:var(--surface); color:var(--text-2); font-size:13px; white-space:nowrap }
+  .pill { display:inline-flex; align-items:center; gap:7px; height:28px; padding:0 11px; border-radius:999px; border:1px solid var(--line); background:var(--surface); color:var(--text-2); font-size:var(--fs-xs); white-space:nowrap }
+  .pill:empty { display:none }
   .pill .dot { width:7px; height:7px; border-radius:50%; background:currentColor }
   .pill.ok { color:var(--done); border-color:#2a4a33 } .pill.bad { color:var(--bad); border-color:#5a2a28 } .pill.warn { color:var(--work); border-color:#5a4a1e }
-  .pill[hidden] { display:none }
-  header .right { margin-left:auto; display:flex; align-items:center; gap:14px; color:var(--muted); font-size:13px; white-space:nowrap }
-  .btn { height:30px; padding:0 12px; border-radius:var(--r); border:1px solid var(--line-strong); background:var(--surface); color:var(--text); cursor:pointer; font-size:13px; font-weight:500 }
+  header .right { margin-left:auto; display:flex; align-items:center; gap:14px; color:var(--muted); font-size:var(--fs-xs); white-space:nowrap }
+  .btn { height:30px; padding:0 12px; border-radius:var(--r); border:1px solid var(--line-strong); background:var(--surface); color:var(--text); cursor:pointer; font-size:var(--fs-xs); font-weight:500; white-space:nowrap }
   .btn:hover { background:var(--raised) } .btn:active { background:var(--line) }
-  .btn.small { height:26px; padding:0 9px; font-size:12px }
+  .btn.small { height:26px; padding:0 9px }
+  .btn.primary { background:var(--accent); border-color:var(--accent); color:#08111f; font-weight:600 } .btn.primary:hover { background:#8ab9ff }
 
   /* ---------- frame ---------- */
   main { display:grid; grid-template-columns:360px minmax(0, 1fr); height:calc(100vh - 56px) }
   aside { background:var(--panel); border-right:1px solid var(--line); overflow:auto; padding:16px 16px 24px }
-  aside h2 { font-size:12px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:22px 0 10px } aside h2:first-child { margin-top:0 }
-  aside h2 small { color:var(--muted); font-weight:500; letter-spacing:0; text-transform:none; margin-left:6px }
-  .empty { color:var(--muted); font-size:13px }
+  aside h2 { font-size:var(--fs-xs); font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:24px 0 10px } aside h2:first-child { margin-top:0 }
   .center { display:flex; flex-direction:column; min-width:0; min-height:0 }
 
-  /* ---------- now ---------- */
-  #now { display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--panel) }
-  #now .big { font-size:18px; font-weight:600; letter-spacing:-.01em } #now.idle .big { color:var(--text-2); font-weight:500 }
-  #now .n { display:inline-flex; align-items:center; gap:8px; height:34px; padding:0 14px 0 12px; border-radius:999px; background:var(--surface); border:1px solid var(--line-strong); font-size:14px; cursor:pointer; max-width:100% }
-  #now .n:hover { border-color:var(--text-2) } #now .n.focus { border-color:var(--text); background:var(--raised) }
-  #now .n b { font-weight:600 } #now .n .where { color:var(--muted) } #now .n code { color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:28ch }
-  #now .clear { font-size:13px; color:var(--text-2); cursor:pointer; text-decoration:underline; text-underline-offset:3px; background:none; border:0; padding:0 }
-  #now .rest { color:var(--muted); font-size:13px; margin-left:auto }
+  /* ---------- overview: the whole plan in one strip ---------- */
+  #overview { display:grid; grid-template-columns:auto minmax(0, 1fr); gap:6px 28px; padding:16px 20px 14px; border-bottom:1px solid var(--line); background:var(--panel) }
+  .ov-num { display:flex; flex-direction:column; justify-content:center; min-width:150px }
+  .ov-num .pct { font-size:var(--fs-xl); font-weight:650; line-height:1.05; letter-spacing:-.02em }
+  .ov-num .pct small { font-size:var(--fs-sm); font-weight:500; color:var(--text-2); margin-left:6px; letter-spacing:0 }
+  .ov-num .of { color:var(--text-2); font-size:var(--fs-xs); margin-top:4px }
+  .ov-status { display:flex; flex-direction:column; justify-content:center; gap:10px; min-width:0 }
+  .sbar { display:flex; height:12px; border-radius:6px; overflow:hidden; background:var(--line); gap:2px }
+  .sbar i { display:block; height:100%; min-width:3px; transition:flex-grow .3s }
+  .sbar .done, .bar .done { background:var(--done) } .sbar .active, .bar .active { background:var(--work) } .sbar .blocked, .bar .blocked { background:var(--bad) }
+  .sbar .planned, .bar .planned { background:var(--plan) }
+  .sbar .roadmap, .bar .roadmap { background:repeating-linear-gradient(135deg, var(--road) 0 3px, transparent 3px 6px); box-shadow:inset 0 0 0 1px var(--road) }
+  .legend { display:flex; flex-wrap:wrap; gap:6px }
+  .stage-btn { display:inline-flex; align-items:center; gap:8px; height:30px; padding:0 12px 0 10px; border-radius:999px; border:1px solid var(--line); background:var(--surface); color:var(--text-2); cursor:pointer; font-size:var(--fs-xs) }
+  .stage-btn b { color:var(--text); font-weight:600; font-size:var(--fs-sm) } .stage-btn:hover { border-color:var(--text-2) }
+  .stage-btn[aria-pressed="true"] { border-color:var(--text); background:var(--raised); color:var(--text) }
+  .stage-btn.zero { opacity:.6 }
+  .dot { width:9px; height:9px; border-radius:50%; flex:none; display:inline-block }
+  .dot.done { background:var(--done) } .dot.active { background:var(--work) } .dot.blocked { background:var(--bad) } .dot.planned { background:var(--plan) } .dot.roadmap { background:transparent; border:2px dashed var(--road) }
+  .ov-agents { grid-column:1 / -1; display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding-top:10px; margin-top:4px; border-top:1px solid var(--line) }
+  .ov-agents .big { font-weight:600 } .ov-agents.idle .big { color:var(--text-2); font-weight:500 }
+  .ov-agents .n { display:inline-flex; align-items:center; gap:8px; min-height:32px; padding:3px 12px 3px 4px; border-radius:999px; background:var(--surface); border:1px solid var(--line-strong); max-width:100%; flex-wrap:wrap }
+  .ov-agents .n .where { color:var(--muted) } .ov-agents .n code { color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:30ch }
+  .ov-agents .cap { margin-left:auto; color:var(--text-2) }
+  .ov-agents .clear { color:var(--text-2); text-decoration:underline; text-underline-offset:3px }
+  .stale-note { grid-column:1 / -1; color:var(--bad); font-weight:500 }
   .pulse { width:9px; height:9px; border-radius:50%; background:var(--done); flex:none; animation:pulse 1.8s cubic-bezier(.2,.8,.2,1) infinite }
   @keyframes pulse { 0% { box-shadow:0 0 0 0 rgba(63,185,80,.55) } 100% { box-shadow:0 0 0 9px rgba(63,185,80,0) } }
-  @media (prefers-reduced-motion: reduce) { .pulse { animation:none } }
+  body.stale #map, body.stale #board { filter:saturate(.25); opacity:.7 }
+
+  /* ---------- toolbar: view switch, edge legend ---------- */
+  #toolbar { display:flex; align-items:center; gap:16px; padding:8px 20px; border-bottom:1px solid var(--line); background:var(--bg); flex-wrap:wrap }
+  .tabs { display:inline-flex; padding:3px; border:1px solid var(--line); border-radius:var(--r); background:var(--panel) }
+  .tabs button { height:28px; padding:0 14px; border:0; border-radius:6px; background:none; color:var(--text-2); cursor:pointer; font-size:var(--fs-xs); font-weight:500 }
+  .tabs button[aria-selected="true"] { background:var(--raised); color:var(--text) }
+  .tabs button kbd { font:inherit; color:var(--muted); margin-left:6px }
+  .edge-key { display:flex; gap:14px; color:var(--muted); font-size:var(--fs-xs); align-items:center }
+  .edge-key svg { vertical-align:middle; margin-right:4px }
+  #filter-note { margin-left:auto; color:var(--text-2); font-size:var(--fs-xs) }
 
   /* ---------- map ---------- */
   #map { position:relative; overflow:auto; flex:1; padding:20px; background-image:radial-gradient(var(--line) 1px, transparent 1px); background-size:24px 24px /* the map is a canvas: the dot grid is its surface, not decoration */ }
   #canvas { position:relative; transform-origin:0 0 }
   #canvas svg { position:absolute; left:0; top:0; pointer-events:none; overflow:visible }
-  .card { position:absolute; width:300px; background:var(--surface); border:1px solid var(--line-strong); border-radius:var(--r-lg); padding:12px 14px 10px; cursor:default; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:border-color .15s, opacity .2s, filter .2s }
+  #edges path { transition:opacity .15s } #edges.hl path { opacity:.15 } #edges.hl path.on { opacity:1; stroke:var(--text-2) }
+  .map-empty { max-width:520px; margin:60px auto; color:var(--text-2); text-align:center }
+  .card { position:absolute; width:320px; background:var(--surface); border:1px solid var(--line-strong); border-radius:var(--r-lg); padding:12px 14px 10px; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:border-color .15s, opacity .2s, filter .2s }
   .card:hover { border-color:var(--text-2) }
-  .card.done { border-color:#2f6b40 } .card.working { border-color:var(--work); background:#1f1d17 }
+  .card.done { border-color:#2f6b40 } .card.working { border-color:var(--work); background:#1f1d17 } .card.blocked { border-color:var(--bad) }
   .card.c-high { border-color:var(--bad); box-shadow:0 0 0 1px var(--bad), 0 1px 2px rgba(0,0,0,.3) } .card.c-medium { border-color:var(--bad); border-style:dashed }
   .card.dim, .tasks.dim { opacity:.16; filter:grayscale(1) }
   .card .head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px }
-  .card .tech { color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0 }
-  .status { flex:none; font-size:12px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; height:20px; padding:0 8px; border-radius:4px; display:inline-flex; align-items:center }
-  .status.done { color:var(--done); background:var(--done-bg) } .status.working { color:var(--work); background:var(--work-bg) } .status.open { color:var(--text-2); background:var(--raised) }
-  .card h3 { font-size:16px; line-height:1.3; margin:6px 0 10px }
-  .bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; display:flex }
-  .bar i { display:block; height:100% } .bar .d { background:var(--done) } .bar .a { background:var(--work) } .bar .b { background:var(--bad) }
-  .meta { display:flex; justify-content:space-between; gap:10px; color:var(--text-2); font-size:12px; margin-top:8px }
+  .card h3 { font-size:var(--fs-md); line-height:1.3 }
+  .card .tech { color:var(--muted); font-size:var(--fs-xs); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:2px 0 10px }
+  .status { flex:none; font-size:var(--fs-xs); font-weight:600; height:22px; padding:0 8px; border-radius:4px; display:inline-flex; align-items:center; white-space:nowrap }
+  .status.done { color:var(--done); background:var(--done-bg) } .status.working { color:var(--work); background:var(--work-bg) } .status.blocked { color:var(--bad); background:var(--bad-bg) }
+  .status.progress { color:var(--plan); background:var(--plan-bg) } .status.later { color:var(--road); background:var(--road-bg) } .status.new, .status.empty { color:var(--text-2); background:var(--raised) }
+  .bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; display:flex; gap:1px }
+  .bar i { display:block; height:100% }
+  .meta { display:flex; justify-content:space-between; gap:10px; color:var(--text-2); font-size:var(--fs-xs); margin-top:8px }
   .meta span:last-child { color:var(--muted); white-space:nowrap }
-  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; min-height:0 }
-  .agent { font-size:12px; font-weight:600; height:22px; padding:0 9px; border-radius:999px; color:#0b0d12; display:inline-flex; align-items:center; gap:6px; cursor:pointer; border:0 }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px }
+  .agent { font-size:var(--fs-xs); font-weight:600; height:24px; padding:0 10px; border-radius:999px; color:#0b0d12; display:inline-flex; align-items:center; gap:6px; cursor:pointer; border:0; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
   .agent.focus { box-shadow:0 0 0 2px var(--text) }
-  .chip { font-size:12px; height:22px; padding:0 9px; border-radius:999px; border:1px solid var(--line-strong); color:var(--text-2); display:inline-flex; align-items:center }
-  .flag { font-size:12px; color:var(--bad); margin-top:8px; display:flex; gap:6px; align-items:flex-start } .flag svg { flex:none; margin-top:2px }
-  .card .toggle { margin:10px -14px -10px; padding:8px 14px; border-top:1px solid var(--line); border-radius:0 0 var(--r-lg) var(--r-lg); background:none; border-left:0; border-right:0; border-bottom:0; width:calc(100% + 28px); text-align:left; display:flex; align-items:center; justify-content:space-between; color:var(--text-2); font-size:12px; font-weight:500; cursor:pointer }
-  .card .toggle:hover { color:var(--text); background:var(--raised) } .card .toggle svg { transition:transform .15s } .card .toggle.open svg { transform:rotate(180deg) }
+  .chip { font-size:var(--fs-xs); height:22px; padding:0 9px; border-radius:999px; border:1px solid var(--line-strong); color:var(--text-2); display:inline-flex; align-items:center }
+  .flag { font-size:var(--fs-xs); color:var(--bad); margin-top:8px; display:flex; gap:6px; align-items:flex-start } .flag svg { flex:none; margin-top:2px }
+  .card .toggle { margin:10px -14px -10px; padding:8px 14px; border-top:1px solid var(--line); border-radius:0 0 var(--r-lg) var(--r-lg); background:none; border-left:0; border-right:0; border-bottom:0; width:calc(100% + 28px); text-align:left; display:flex; align-items:center; justify-content:space-between; color:var(--text-2); font-size:var(--fs-xs); font-weight:500; cursor:pointer }
+  .card .toggle:hover { color:var(--text); background:var(--raised) } .card .toggle svg { transition:transform .15s } .card .toggle[aria-expanded="true"] svg { transform:rotate(180deg) }
 
-  /* ---------- task list under a card ---------- */
-  .tasks { position:absolute; width:300px; background:var(--surface); border:1px solid var(--line-strong); border-radius:var(--r-lg); overflow:hidden; box-shadow:0 1px 2px rgba(0,0,0,.3) }
-  .tasks .row { display:flex; align-items:center; gap:10px; height:42px; padding:0 12px; border-top:1px solid var(--line); font-size:13px; cursor:pointer; width:100%; background:none; border-left:0; border-right:0; border-bottom:0; text-align:left }
-  .tasks .row:first-child { border-top:0 } .tasks .row:hover { background:var(--raised) }
-  .ic { width:22px; height:22px; border-radius:50%; flex:none; display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; border:1.5px solid var(--line-strong); color:var(--text-2) }
+  /* ---------- task rows: under a card, in the status board, in the sidebar ---------- */
+  .tasks { position:absolute; width:320px; background:var(--surface); border:1px solid var(--line-strong); border-radius:var(--r-lg); overflow:hidden; box-shadow:0 1px 2px rgba(0,0,0,.3) }
+  .row { display:flex; align-items:center; gap:10px; min-height:44px; padding:7px 12px; border:0; border-top:1px solid var(--line); cursor:pointer; width:100%; background:none; text-align:left }
+  .row:first-child { border-top:0 } .row:hover { background:var(--raised) } .row.sel { background:var(--raised); box-shadow:inset 3px 0 0 var(--accent) }
+  .ic { width:22px; height:22px; border-radius:50%; flex:none; display:inline-flex; align-items:center; justify-content:center; border:1.5px solid var(--line-strong); color:var(--text-2) }
   .ic.done { background:var(--done); border-color:var(--done); color:var(--done-ink) } .ic.active { background:var(--work); border-color:var(--work); color:var(--work-ink) } .ic.blocked { background:var(--bad); border-color:var(--bad); color:#fff }
+  .ic.planned { border-color:var(--plan) } .ic.roadmap { border:1.5px dashed var(--road) }
   .ic svg { width:12px; height:12px }
-  .tasks .ttl { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap } .tasks .row.pending .ttl { color:var(--text-2) }
-  .badge { font-size:12px; height:22px; padding:0 9px; border-radius:999px; background:var(--raised); color:var(--text-2); flex:none; display:inline-flex; align-items:center }
+  .row .ttl { flex:1; min-width:0; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; line-height:1.4 }
+  .row .ttl small { display:block; color:var(--muted); font-size:var(--fs-xs) }
+  .row.roadmap .ttl, .row.planned .ttl { color:var(--text-2) }
+  .badge { font-size:var(--fs-xs); height:22px; padding:0 9px; border-radius:999px; background:var(--raised); color:var(--text-2); flex:none; display:inline-flex; align-items:center; white-space:nowrap }
   .badge.done { background:var(--done-bg); color:var(--done) } .badge.active { background:var(--work-bg); color:var(--work) } .badge.blocked { background:var(--bad-bg); color:var(--bad) }
-  .tasks .ev { color:var(--bad); flex:none; display:inline-flex }
+  .badge.planned { background:var(--plan-bg); color:var(--plan) } .badge.roadmap { background:var(--road-bg); color:var(--road) }
+  .row .who { flex:none; font-size:var(--fs-xs); font-weight:600; height:22px; padding:0 9px; border-radius:999px; background:var(--c); color:#0b0d12; display:inline-flex; align-items:center }
+  .row .ev { color:var(--bad); flex:none; display:inline-flex }
+  .flash { animation:flash 2.6s ease-out 1 } @keyframes flash { 0%, 35% { outline:2px solid var(--done); outline-offset:2px } 100% { outline:2px solid transparent; outline-offset:2px } }
 
-  /* ---------- agents (left) ---------- */
+  /* ---------- status board: every task by stage ---------- */
+  #board { flex:1; min-height:0; display:grid; grid-auto-flow:column; grid-auto-columns:minmax(260px, 1fr); gap:12px; padding:16px 20px; overflow:auto }
+  .col { display:flex; flex-direction:column; min-height:0; background:var(--panel); border:1px solid var(--line); border-radius:var(--r-lg) }
+  .col > header { position:static; height:auto; display:flex; align-items:center; gap:8px; padding:12px 14px 4px; border:0; background:none }
+  .col > header h2 { font-size:var(--fs-sm) } .col > header .n { margin-left:auto; color:var(--text-2); font-weight:600 }
+  .col .hint { margin:0; padding:0 14px 10px; color:var(--muted); font-size:var(--fs-xs); border-bottom:1px solid var(--line) }
+  .col .items { overflow:auto; padding:6px 8px 10px }
+  .grp { margin-top:8px } .grp .gh { padding:4px 6px; color:var(--muted); font-size:var(--fs-xs); font-weight:600 }
+  .grp .row { border:1px solid var(--line); border-radius:var(--r); margin-bottom:4px; background:var(--surface) } .grp .row:hover { background:var(--raised) }
+
+  /* ---------- sidebar ---------- */
+  .capn { display:flex; align-items:baseline; gap:10px } .capn b { font-size:var(--fs-xl); line-height:1; font-weight:650 } .capn span { color:var(--text-2) }
+  .cap p { margin:8px 0 10px; color:var(--text-2); font-size:var(--fs-xs) }
+  .sug { border:1px solid var(--line); border-radius:var(--r); background:var(--surface); padding:10px 12px; margin-bottom:6px }
+  .sug .r1 { display:flex; justify-content:space-between; gap:8px; align-items:baseline } .sug .r1 span { color:var(--muted); font-size:var(--fs-xs); white-space:nowrap }
+  .sug .r2 { margin-top:4px; font-size:var(--fs-xs); color:var(--text-2); display:flex; gap:8px; align-items:flex-start; justify-content:space-between }
+  .sug .r2 .lnk { color:var(--text-2); overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical } .sug .r2 .lnk:hover { color:var(--text) }
+  .held { margin-top:8px; font-size:var(--fs-xs); color:var(--text-2) } .held summary { cursor:pointer } .held ul { margin:6px 0 0; padding-left:18px } .held li { margin:2px 0 }
+  .why { color:var(--muted); font-size:var(--fs-xs); margin-top:8px }
   .lane { border:1px solid var(--line); border-radius:var(--r); margin-bottom:8px; background:var(--surface) }
   .lane.active { border-color:#2f6b40 } .lane.ended, .lane.gone { opacity:.55 }
   .lane .who { display:flex; align-items:center; gap:8px; width:100%; padding:10px 12px; background:none; border:0; text-align:left; cursor:pointer; border-radius:var(--r) }
   .lane .who:hover { background:var(--raised) }
   .lane .who .name { font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
   .lane .who .name small { color:var(--muted); font-weight:500 }
-  .state { font-size:12px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; height:20px; padding:0 7px; border-radius:4px; display:inline-flex; align-items:center; flex:none }
+  .state { font-size:var(--fs-xs); font-weight:600; height:20px; padding:0 7px; border-radius:4px; display:inline-flex; align-items:center; flex:none; text-transform:capitalize }
   .state.active { color:var(--done); background:var(--done-bg) } .state.open { color:var(--accent); background:#1a2a44 } .state.ended, .state.gone { color:var(--text-2); background:var(--raised) }
-  .lane .sub { padding:0 12px 10px; color:var(--muted); font-size:12px; display:flex; justify-content:space-between; gap:8px }
-  .lane .sub .holds { color:var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
-  .lane .files { list-style:none; margin:0; padding:4px 12px 10px; font-size:12px; color:var(--text-2) }
-  .lane .files li { display:flex; justify-content:space-between; gap:10px; white-space:nowrap; overflow:hidden; line-height:1.7 } .lane .files li span:first-child { overflow:hidden; text-overflow:ellipsis } .lane .files li span:last-child { color:var(--muted); flex:none }
-  .lane .detail { border-top:1px solid var(--line); padding:10px 12px 12px; font-size:13px }
-  .kv { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; margin:0 } .kv dt { color:var(--muted) } .kv dd { margin:0; min-width:0; overflow-wrap:anywhere }
-  .conf { display:flex; gap:9px; align-items:flex-start; padding:8px 10px; margin-bottom:6px; border:1px solid var(--line); border-radius:var(--r); background:var(--surface); font-size:13px }
-  .conf .sev { width:8px; height:8px; border-radius:50%; flex:none; margin-top:7px; background:var(--muted) } .conf.high .sev { background:var(--bad) } .conf.medium .sev { background:var(--work) }
-  .changes { list-style:none; margin:0; padding:6px 0; border:1px solid var(--line); border-radius:var(--r); background:var(--surface); font-size:12px }
-  .changes li { display:flex; justify-content:space-between; gap:10px; padding:3px 12px; white-space:nowrap } .changes li span:first-child { overflow:hidden; text-overflow:ellipsis; color:var(--text-2) } .changes li span:last-child { color:var(--muted); flex:none }
+  .lane .sub { padding:0 12px 8px; color:var(--muted); font-size:var(--fs-xs); display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap }
+  .lane .holds { font-size:var(--fs-xs) }
+  .lane .files { list-style:none; margin:0; padding:2px 12px 10px; font-size:var(--fs-xs); color:var(--text-2) }
+  .lane .files li, .flist li { display:flex; justify-content:space-between; gap:10px; white-space:nowrap; overflow:hidden; line-height:1.8 }
+  .lane .files li > :first-child, .flist li > :first-child { overflow:hidden; text-overflow:ellipsis; color:var(--text-2) } .lane .files li > :last-child, .flist li > :last-child { color:var(--muted); flex:none }
+  .lane .detail { border-top:1px solid var(--line); padding:10px 12px 12px; font-size:var(--fs-xs) }
+  .kv { display:grid; grid-template-columns:auto 1fr; gap:6px 14px; margin:0 } .kv dt { color:var(--muted) } .kv dd { margin:0; min-width:0; overflow-wrap:anywhere }
+  .blocked-item { border:1px solid #5a2a28; border-radius:var(--r); background:var(--surface); margin-bottom:6px; overflow:hidden } .blocked-item .why2 { padding:0 12px 9px 44px; color:var(--bad); font-size:var(--fs-xs) }
+  .conf { display:flex; gap:9px; align-items:flex-start; padding:8px 10px; margin-bottom:6px; border:1px solid var(--line); border-radius:var(--r); background:var(--surface); font-size:var(--fs-xs) }
+  .conf .sev { width:8px; height:8px; border-radius:50%; flex:none; margin-top:6px; background:var(--muted) } .conf.high .sev { background:var(--bad) } .conf.medium .sev { background:var(--work) }
+  .conf .sevw { font-weight:600; margin-right:4px } .conf.high .sevw { color:var(--bad) } .conf.medium .sevw { color:var(--work) } .conf.low .sevw { color:var(--text-2) }
+  .changes { list-style:none; margin:0; padding:6px 0; border:1px solid var(--line); border-radius:var(--r); background:var(--surface); font-size:var(--fs-xs) }
+  .changes li { display:flex; justify-content:space-between; gap:10px; padding:3px 12px; white-space:nowrap } .changes li > :first-child { overflow:hidden; text-overflow:ellipsis; color:var(--text-2) } .changes li > :last-child { color:var(--muted); flex:none }
   .changes li .st { display:inline-block; width:14px; color:var(--muted) }
 
   /* ---------- task popover ---------- */
-  #pop { position:fixed; z-index:20; width:380px; max-width:calc(100vw - 24px); background:var(--raised); border:1px solid var(--line-strong); border-radius:var(--r-lg); box-shadow:var(--shadow); padding:14px 16px 12px }
-  #pop[hidden] { display:none }
-  #pop .top { display:flex; align-items:flex-start; gap:10px } #pop h3 { font-size:16px; flex:1; line-height:1.35 }
-  #pop .close { background:none; border:0; color:var(--muted); cursor:pointer; padding:2px; display:inline-flex; border-radius:4px } #pop .close:hover { color:var(--text); background:var(--line) }
-  #pop .kv { margin:12px 0 }
-  #pop .evidence { font-size:12px; color:var(--text-2); overflow-wrap:anywhere; background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:8px 10px; margin-top:4px }
-  #pop .problem { color:var(--bad); font-size:13px; margin-top:8px }
-  #pop .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px }
-  #pop details.brief { margin-top:10px; font-size:13px } #pop details.brief summary { cursor:pointer; color:var(--text-2) } #pop details.brief summary:hover { color:var(--text) }
-  #pop details.brief pre { white-space:pre-wrap; font:12px/1.5 "Cascadia Code", "JetBrains Mono", ui-monospace, Consolas, monospace; color:var(--text-2); background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:10px 12px; margin:8px 0 0; max-height:260px; overflow:auto }
+  #pop { position:fixed; z-index:20; width:440px; max-width:calc(100vw - 24px); max-height:calc(100vh - 24px); overflow:auto; background:var(--raised); border:1px solid var(--line-strong); border-radius:var(--r-lg); box-shadow:var(--shadow); padding:14px 16px 14px }
+  #pop .top { display:flex; align-items:flex-start; gap:10px } #pop h3 { font-size:var(--fs-md); flex:1; line-height:1.35 }
+  #pop .close { background:none; border:0; color:var(--text-2); cursor:pointer; padding:2px; display:inline-flex; border-radius:4px } #pop .close:hover { color:var(--text); background:var(--line) }
+  #pop .kv { margin:14px 0 4px; font-size:var(--fs-xs) } #pop .kv dt { padding-top:2px }
+  #pop .sub { color:var(--muted); margin-top:2px }
+  #pop .subj { display:block; color:var(--muted); margin-top:2px }
+  #pop .refs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px }
+  .ref { font-family:var(--mono); font-size:var(--fs-xs); padding:2px 8px; border-radius:6px; background:var(--surface); border:1px solid var(--line); color:var(--text-2) } a.ref { color:var(--accent) } .ref.bad { color:var(--bad); border-color:#5a2a28 }
+  #pop .evidence { font-size:var(--fs-xs); color:var(--text-2); overflow-wrap:anywhere; background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:8px 10px }
+  .need { display:inline-block; margin:0 6px 4px 0 } .need.wait { color:var(--work) }
+  #pop .problem { color:var(--bad); font-size:var(--fs-xs); margin-top:8px }
+  #pop .actions { display:flex; gap:8px; justify-content:flex-end; align-items:center; margin-top:12px }
+  #pop details.brief { margin-top:12px; font-size:var(--fs-xs) } #pop details.brief summary { cursor:pointer; color:var(--text-2) } #pop details.brief summary:hover { color:var(--text) }
+  #pop details.brief pre { white-space:pre-wrap; font:var(--fs-xs)/1.5 var(--mono); color:var(--text-2); background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:10px 12px; margin:8px 0 0; max-height:240px; overflow:auto }
+  .flist { list-style:none; margin:0; padding:0 }
 
   /* ---------- license dialog ---------- */
   dialog { background:var(--raised); color:var(--text); border:1px solid var(--line-strong); border-radius:var(--r-lg); padding:0; width:min(640px, calc(100vw - 32px)); box-shadow:var(--shadow) }
   dialog::backdrop { background:rgba(8,10,14,.6) }
-  dialog .dh { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--line) } dialog .dh h2 { font-size:16px }
-  dialog .db { padding:18px 20px 20px; font-size:13px; line-height:1.6; color:var(--text-2) } dialog .db p:first-child { margin-top:0 } dialog .db p { margin:0 0 12px }
+  dialog .dh { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--line) } dialog .dh h2 { font-size:var(--fs-md) }
+  dialog .db { padding:18px 20px 20px; font-size:var(--fs-xs); line-height:1.6; color:var(--text-2) } dialog .db p:first-child { margin-top:0 } dialog .db p { margin:0 0 12px }
   dialog .db .who { color:var(--text); font-weight:600 }
-  dialog pre { white-space:pre-wrap; font:12px/1.55 "Cascadia Code", "JetBrains Mono", ui-monospace, Consolas, monospace; color:var(--text-2); background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:12px 14px; margin:12px 0 0 }
+  dialog pre { white-space:pre-wrap; font:var(--fs-xs)/1.55 var(--mono); color:var(--text-2); background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:12px 14px; margin:12px 0 0 }
 
-  @media (max-width: 1100px) { main { grid-template-columns:1fr; height:auto } aside { border-right:0; border-bottom:1px solid var(--line); max-height:none } #map { min-height:60vh } }
+  @media (prefers-reduced-motion: reduce) { .pulse, .flash { animation:none } .sbar i, #edges path { transition:none } }
+  @media (max-width: 1100px) { main { grid-template-columns:1fr; height:auto } aside { border-right:0; border-bottom:1px solid var(--line) } #map, #board { min-height:70vh } #overview { grid-template-columns:1fr } }
 </style>
 </head>
 <body>
@@ -151,27 +225,40 @@
     <span class="repo" id="repo"></span>
   </div>
   <div class="stats">
-    <span class="pill" id="conn"><span class="dot"></span> connecting</span>
-    <span class="pill" id="sum-tasks"></span>
-    <span class="pill" id="sum-agents"></span>
+    <span class="pill" id="conn"><span class="dot"></span> Connecting</span>
     <span class="pill" id="sum-conf"></span>
     <span class="pill" id="sum-evidence"></span>
-    <span class="pill" id="sum-lock" hidden></span>
+    <span class="pill warn" id="sum-lock"></span>
   </div>
   <div class="right"><span id="updated"></span><button class="btn" id="license-btn" type="button">License</button></div>
 </header>
 <main>
   <aside>
-    <h2>Agents</h2><div id="agents"></div>
+    <h2 id="cap-h">Parallel agents</h2><div id="capacity" class="cap" data-scope="cap"></div>
+    <h2>Agents</h2><div id="agents" data-scope="agents"></div>
+    <div id="blocked-wrap" hidden><h2>Blocked</h2><div id="blocked" data-scope="blocked"></div></div>
     <h2>Conflicts</h2><div id="conflicts"></div>
     <h2>Uncommitted changes</h2><div id="changes"></div>
   </aside>
   <div class="center">
-    <div id="now"></div>
-    <div id="map"><div id="canvas"><svg id="edges"></svg></div></div>
+    <section id="overview" aria-label="Plan status" data-scope="overview"><div class="ov-num"><span class="pct">…</span><span class="of">Loading the plan</span></div></section>
+    <div id="toolbar">
+      <div class="tabs" role="tablist" aria-label="View">
+        <button type="button" role="tab" data-view="map" aria-selected="true" title="Components along their edges (key: m)">Map<kbd>m</kbd></button>
+        <button type="button" role="tab" data-view="status" aria-selected="false" title="Every task by stage (key: b)">Status board<kbd>b</kbd></button>
+      </div>
+      <div class="edge-key" id="edge-key">
+        <span><svg width="26" height="8" aria-hidden="true"><path d="M1 4h20" stroke="#7a8396" stroke-width="1.5"/><path d="M19 1l5 3-5 3z" fill="#7a8396"/></svg>needs (builds on)</span>
+        <span><svg width="24" height="8" aria-hidden="true"><path d="M1 4h22" stroke="#566074" stroke-dasharray="4 4"/></svg>links (coupled)</span>
+      </div>
+      <span id="filter-note"></span>
+    </div>
+    <div id="map" data-scope="map"><div id="canvas"><svg id="edges"></svg></div><div class="map-empty" id="map-empty" hidden></div></div>
+    <div id="board" data-scope="board" hidden></div>
   </div>
 </main>
-<div id="pop" hidden role="dialog" aria-label="Task"></div>
+<div id="pop" hidden role="dialog" aria-modal="false" aria-labelledby="pop-title" data-scope="pop"></div>
+<div id="announce" class="sr" aria-live="polite"></div>
 <dialog id="license">
   <div class="dh"><h2>AgentViz</h2><button class="btn small" type="button" id="license-close">Close</button></div>
   <div class="db">
@@ -191,9 +278,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 <script>
 (() => {
   const $ = id => document.getElementById(id);
-  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const ago = (ms, now) => { const d = Math.max(0, now - ms); return d < 60e3 ? `${Math.round(d / 1e3)} s` : d < 3600e3 ? `${Math.round(d / 60e3)} min` : d < 86400e3 ? `${Math.round(d / 3600e3)} h` : `${Math.round(d / 86400e3)} d`; };
-  const PALETTE = ['#6ea8ff', '#f9826c', '#d2a8ff', '#7ee787', '#ffa657', '#79c0ff', '#ff7b72', '#56d4dd'];
+  const clock = ms => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const plural = (n, w, p = w + 's') => `${n} ${n === 1 ? w : p}`;
+  const PALETTE = ['#6ea8ff', '#f9826c', '#d2a8ff', '#7ee787', '#ffa657', '#79c0ff', '#ff7b72', '#56d4dd', '#e3b341', '#a5d6ff', '#ffb3d1', '#b4f0a8'];
   const colorOf = (() => { const m = new Map(); return a => { if (!m.has(a)) m.set(a, PALETTE[m.size % PALETTE.length]); return m.get(a); }; })();
   const ICON = {
     check: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5 6.5 12 13 4.5"/></svg>',
@@ -203,69 +292,245 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     warn: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5 14.5 13.5h-13L8 2.5ZM8 6.5v3M8 12v.1"/></svg>',
     x: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg>',
   };
-  const STATUS_WORD = { done: 'Completed', active: 'In progress', blocked: 'Blocked', pending: 'Open' };
+  // the stages of a task, left to right as work flows
+  const STAGES = [['roadmap', 'Roadmap'], ['planned', 'Planned'], ['active', 'In progress'], ['blocked', 'Blocked'], ['done', 'Done']];
+  const STAGE_WORD = Object.fromEntries(STAGES);
+  const STAGE_HINT = {
+    roadmap: 'Open, from: roadmap. Intent for later, not the current scope.',
+    planned: 'Open and meant for now. Ready for an agent.',
+    active: 'Claimed [~] by a live agent session.',
+    blocked: 'Stuck [!], or ticked but its evidence failed.',
+    done: 'Ticked [x] with evidence on its tech: line.',
+  };
+  const iconOf = st => st === 'done' ? ICON.check : st === 'active' ? ICON.dots : st === 'blocked' ? ICON.bang : '';
 
   // ---------- view state ----------
-  const expanded = new Set();     // component ids whose tasks are unfolded under the card
-  let state = null, positions = {}, focus = null;   // focus = agent label whose work is highlighted; its lane is open
+  const store = { get: k => { try { return localStorage.getItem('agentviz.' + k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem('agentviz.' + k, v); } catch { /* private window */ } } };
+  const expanded = new Set(JSON.parse(store.get('expanded') || '[]'));
+  let state = null, positions = {}, focus = null, stageFilter = null, pop = null, live = false, prevStages = null, flashIds = new Set(), booted = false;
+  let view = store.get('view') === 'status' ? 'status' : 'map';
+  const saveExpanded = () => store.set('expanded', JSON.stringify([...expanded]));
   const label = x => x.name ? `${x.name} · ${x.agent}` : x.agent;
-  const compsOf = (s, x) => new Set([...x.files.flatMap(f => f.components), ...x.claims.map(k => s.tasks.find(t => t.id === k)?.component).filter(Boolean)]);
-  const toggleFocus = a => { focus = focus === a ? null : a; closePop(); render(state); };
+  const comp = (s, id) => s.components.find(c => c.id === id);
+  const task = (s, id) => s.tasks.find(t => t.id === id);
+  const sessionBy = (s, key) => key ? s.sessions.find(x => x.id === key) || s.sessions.find(x => x.agent === key) : null;
+  const compsOf = (s, x) => new Set([...x.files.flatMap(f => f.components), ...x.claims.map(k => task(s, k)?.component).filter(Boolean)]);
+  const announce = text => { $('announce').textContent = ''; setTimeout(() => { $('announce').textContent = text; }, 30); };
+  const setHash = h => { try { history.replaceState(null, '', h ? '#' + h : location.pathname + location.search); } catch { /* sandboxed */ } };
+
+  // ---------- links: editor, repository host ----------
+  const editorUrl = (s, file, line) => s.editor && file ? `${s.editor}://file/${encodeURI((s.root.replace(/\\/g, '/') + '/' + file).replace(/^\/+/, ''))}${line ? ':' + line : ''}` : null;
+  const fileLink = (s, file, line, html, cls = '') => { const u = editorUrl(s, file, line); return u ? `<a class="${cls}" href="${esc(u)}" title="Open ${esc(file)}${line ? ':' + line : ''} in ${esc(s.editor)}">${html}</a>` : `<span class="${cls}">${html}</span>`; };
+  const commitLink = (s, c) => s.web ? `<a href="${esc(s.web.base + s.web.commit + c.hash)}" target="_blank" rel="noopener" title="${esc(c.subject)}">${esc(c.hash)}</a>` : `<code title="${esc(c.subject)}">${esc(c.hash)}</code>`;
+  const agentChip = (s, agent) => `<button type="button" class="agent${focus === agent ? ' focus' : ''}" data-agent="${esc(agent)}" style="background:${colorOf(agent)}" title="Show only this agent's work">${esc(label(sessionBy(s, agent) || { agent }))}</button>`;
+  const taskLink = (s, id, withTitle) => { const t = task(s, id); return `<button type="button" class="lnk" data-task="${esc(id)}">#${esc(id)}${withTitle && t ? ` · ${esc(t.title)}` : ''}</button>`; };
+  const compLink = (s, id) => { const c = comp(s, id); return `<button type="button" class="lnk" data-act="show-comp" data-comp="${esc(id)}">#${esc(id)}${c ? ` · ${esc(c.title)}` : ''}</button>`; };
+  const stateText = (x, now) => x.state === 'active' ? `editing · ${ago(x.lastAt, now)} ago` : x.state === 'open' ? `open, no edits for ${ago(x.lastAt, now)}` : x.state === 'ended' ? `ended ${ago(x.lastAt, now)} ago` : `gone · last seen ${ago(x.lastAt, now)} ago`;
+
+  async function copy(text, el, done = 'Copied') {
+    try { await navigator.clipboard.writeText(text); } catch { window.prompt('Copy:', text); return; }
+    announce(done);
+    if (el && el.isConnected) { const was = el.textContent; el.textContent = done; setTimeout(() => { if (el.isConnected) el.textContent = was; }, 1600); }
+  }
 
   // ---------- brief for an agent ----------
   function briefFor(s, t) {
-    const c = s.components.find(x => x.id === t.component);
-    const siblings = s.tasks.filter(x => x.component === t.component && x.id !== t.id && x.status !== 'done').map(x => `#${x.id} (${x.status}${x.claim ? ', held by ' + x.claim.by : ''})`);
+    const c = comp(s, t.component);
+    const siblings = s.tasks.filter(x => x.component === t.component && x.id !== t.id && x.status !== 'done' && x.stage !== 'roadmap').map(x => `#${x.id} (${STAGE_WORD[x.stage].toLowerCase()}${x.claim ? ', held by ' + x.claim.by : ''})`);
+    const needs = c ? c.needs.map(n => comp(s, n)).filter(Boolean) : [];
     return [
       `Take task #${t.id} in PLAN.md of ${s.repo}: "${t.title}".`,
-      c ? `Component #${c.id} "${c.title}" — ${c.tech}. It owns: ${c.files.join(', ')}. Keep your changes to those files; other components are other agents' ground.` : '',
+      c ? `Component #${c.id} "${c.title}"${c.tech ? ` (${c.tech})` : ''}. It owns: ${c.files.join(', ')}. Keep your changes to those files; other components are other agents' ground.` : '',
+      needs.length ? `It builds on ${needs.map(n => `#${n.id} (${n.counts.done} of ${n.counts.total} done)`).join(', ')}. Use what they offer; do not change their files. If you need something there, say so instead of building it.` : '',
+      t.stage === 'roadmap' ? 'The task is on the roadmap (from: roadmap). Taking it pulls it into the current scope: remove its from: line when you claim it.' : '',
       t.tech ? `Notes on the task (tech:): ${t.tech}` : '',
       siblings.length ? `Other open tasks in this component, not yours: ${siblings.join(', ')}.` : '',
-      'Before you start: mark the task [~] in PLAN.md with a "by:" line naming you, and save the file - that is your claim, other agents see it.',
+      'Before you start: mark the task [~] in PLAN.md with a "by:" line naming you, and save the file. That is your claim; other agents see it.',
       'When done: mark it [x] and cite the evidence on its tech: line (the implementing files with line ranges where useful, and the test files). Run `npm run plan:check`; a tick without evidence is not done.',
       'If you are stuck, mark it [!] with a line saying why. Record any decision that changes the plan under ## decisions before acting on it.',
     ].filter(Boolean).join('\n');
   }
-  async function copyBrief(s, t, el) {
-    const text = briefFor(s, t);
-    try { await navigator.clipboard.writeText(text); el.textContent = 'Copied'; } catch { window.prompt('Copy the brief for the agent:', text); return; }
-    setTimeout(() => { el.textContent = 'Copy brief'; }, 1800);
+
+  // ---------- task rows ----------
+  function rowHtml(s, x, { showComp = false } = {}) {
+    const st = x.stage;
+    const holder = x.claim?.by;
+    const end = holder ? `<span class="who" style="--c:${colorOf(holder)}">${esc(holder)}</span>` : st === 'done' ? '' : `<span class="badge ${st}">${st === 'planned' && x.from === 'agent' ? 'Next' : STAGE_WORD[st]}</span>`;
+    return `<button type="button" class="row ${st}${flashIds.has(x.id) ? ' flash' : ''}${pop?.task === x.id ? ' sel' : ''}" data-task="${esc(x.id)}" title="${esc(x.title)}" aria-label="${esc(`${x.title}. ${STAGE_WORD[st]}${holder ? ', held by ' + holder : ''}`)}">
+      <span class="ic ${st}">${iconOf(st)}</span><span class="ttl">${showComp ? `<small>#${esc(x.component || '?')}</small>` : ''}${esc(x.title)}</span>${x.problems.length ? `<span class="ev" title="${esc(x.problems.join('; '))}">${ICON.warn}</span>` : ''}${end}</button>`;
   }
 
   // ---------- task popover ----------
-  function closePop() { $('pop').hidden = true; }
-  function openPop(s, t, anchor) {
-    const now = s.at;
-    const c = s.components.find(x => x.id === t.component);
-    const open = t.status === 'pending' || t.status === 'blocked';
-    const pop = $('pop');
-    pop.innerHTML = `<div class="top"><span class="ic ${t.status}">${t.status === 'done' ? ICON.check : t.status === 'active' ? ICON.dots : t.status === 'blocked' ? ICON.bang : ''}</span><h3>${esc(t.title)}</h3><button class="close" type="button" aria-label="Close">${ICON.x}</button></div>
-      <dl class="kv">
-        <dt>Status</dt><dd><span class="badge ${t.status}">${STATUS_WORD[t.status]}</span>${t.from ? ` <span class="badge">${t.from === 'roadmap' ? 'from roadmap' : 'planned by an agent'}</span>` : ''}</dd>
-        <dt>Task</dt><dd><code>#${esc(t.id)}</code>${c ? ` in #${esc(c.id)} · ${esc(c.title)}` : ''}</dd>
-        ${t.claim ? `<dt>Held by</dt><dd>${esc(t.claim.by)} · since ${ago(t.claim.at, now)} ago</dd>` : t.by ? `<dt>Done by</dt><dd>${esc(t.by)}</dd>` : ''}
-        ${t.tech ? `<dt>Evidence</dt><dd><div class="evidence">${esc(t.tech)}</div></dd>` : ''}
-      </dl>
-      ${t.problems.length ? `<div class="problem">Evidence check failed: ${esc(t.problems.join('; '))}</div>` : ''}${t.check ? `<div class="problem">${esc(t.check)}</div>` : ''}
-      ${open ? `<details class="brief"><summary>Brief for an agent (the prompt)</summary><pre>${esc(briefFor(s, t))}</pre></details>` : ''}
-      <div class="actions">${open ? '<button class="btn small" type="button" data-copy>Copy brief</button>' : ''}<button class="btn small" type="button" data-close>Close</button></div>`;
-    pop.hidden = false;
-    const r = anchor.getBoundingClientRect();
-    const w = pop.offsetWidth, h = pop.offsetHeight;
-    let left = r.right + 12, top = r.top - 8;
-    if (left + w > innerWidth - 12) left = Math.max(12, r.left - w - 12);
-    if (top + h > innerHeight - 12) top = Math.max(12, innerHeight - h - 12);
-    pop.style.left = left + 'px'; pop.style.top = top + 'px';
-    pop.querySelector('.close').onclick = closePop;
-    pop.querySelector('[data-close]').onclick = closePop;
-    const cp = pop.querySelector('[data-copy]'); if (cp) cp.onclick = () => copyBrief(s, t, cp);
-    pop.querySelector('.close').focus();
+  function evidenceHtml(s, t) {
+    // for open tasks the tech: line is notes about files still to write: only resolved files become links
+    const refs = t.status === 'done' || t.status === 'blocked' ? t.refs : t.refs.filter(r => r.file);
+    const chips = refs.map(r => {
+      const txt = esc(r.file || r.path) + (r.from ? `:${r.from}${r.to && r.to !== r.from ? '-' + r.to : ''}` : '');
+      if (r.file) return fileLink(s, r.file, r.from, txt, 'ref');
+      return `<span class="ref${r.found === false ? ' bad' : ''}" title="${r.found === false ? 'not found in the repository' : 'a glob or a bare file name'}">${txt}</span>`;
+    }).join('');
+    return (chips ? `<div class="refs">${chips}</div>` : '') + `<div class="evidence">${esc(t.tech)}</div>`;
   }
-  document.addEventListener('click', e => { if (!$('pop').hidden && !$('pop').contains(e.target) && !e.target.closest('.tasks .row')) closePop(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closePop(); });
 
-  // ---------- layout: layers by needs (longest path), columns left to right ----------
-  function layout(components) {
+  function popHtml(s, t, briefOpen) {
+    const now = Date.now();
+    const c = comp(s, t.component);
+    const holder = t.claim ? sessionBy(s, t.claim.session) : null;
+    const changer = !t.claim && t.changedBy ? sessionBy(s, t.changedBy.session) : null;
+    const open = t.stage === 'planned' || t.stage === 'roadmap' || t.stage === 'blocked';
+    const needs = c ? c.needs.map(n => comp(s, n)).filter(Boolean) : [];
+    const kv = [];
+    kv.push(['Stage', `<span class="badge ${t.stage}">${STAGE_WORD[t.stage]}</span>${t.from === 'agent' && t.stage === 'planned' ? ' <span class="badge">declared by an agent</span>' : ''}${t.horizon ? ` <span class="badge">${esc(t.horizon)}</span>` : ''}`]);
+    kv.push(['Component', c ? compLink(s, c.id) : '<span class="empty">none</span>']);
+    if (needs.length) kv.push(['Builds on', needs.map(n => `<span class="need${n.counts.done ? '' : ' wait'}">${compLink(s, n.id).replace(/ · [^<]*</, '<')} ${n.counts.done}/${n.counts.total} done</span>`).join('')]);
+    if (t.claim) {
+      kv.push(['Held by', `${agentChip(s, t.claim.by)} <span class="sub">since ${ago(t.claim.at, now)} ago${holder ? ` · ${esc(stateText(holder, now))}` : ''}</span>`]);
+      if (holder) {
+        const files = holder.files.filter(f => f.components.includes(t.component)).slice(0, 6);
+        if (files.length) kv.push(['Its edits here', `<ul class="flist">${files.map(f => `<li>${fileLink(s, f.file, null, esc(f.file), 'mono')}<span>${ago(f.at, now)}</span></li>`).join('')}</ul>`]);
+        kv.push(['Session', `<code>${esc(holder.id)}</code> <button type="button" class="btn small" data-act="resume" data-session="${esc(holder.id)}">Copy resume command</button>`]);
+      }
+    }
+    if (t.stage === 'done') {
+      const parts = [];
+      if (t.by) parts.push(`by ${esc(t.by)}`);
+      if (changer) parts.push(`in session ${agentChip(s, changer.agent)}`);
+      parts.push(t.tick ? `ticked in ${commitLink(s, t.tick)} · ${ago(t.tick.at, now)} ago<span class="subj">${esc(t.tick.subject)}</span>` : '<span class="outside">ticked, not committed yet</span>');
+      kv.push(['Done', parts.join(' · ')]);
+    }
+    if (t.tech) kv.push([t.status === 'done' || t.status === 'blocked' ? 'Evidence' : 'Notes', evidenceHtml(s, t)]);
+    kv.push(['In PLAN.md', `${fileLink(s, 'PLAN.md', t.line, `PLAN.md:${t.line}`, 'mono')} · <code>#${esc(t.id)}</code>`]);
+    return `<div class="top"><span class="ic ${t.stage}">${iconOf(t.stage)}</span><h3 id="pop-title">${esc(t.title)}</h3><button class="close" type="button" data-act="close" aria-label="Close">${ICON.x}</button></div>
+      <dl class="kv">${kv.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
+      ${t.problems.length ? `<div class="problem">Evidence check failed: ${esc(t.problems.join('; '))}</div>` : ''}${t.check ? `<div class="problem">${esc(t.check)}</div>` : ''}
+      ${open ? `<details class="brief"${briefOpen ? ' open' : ''}><summary>Brief for an agent (the prompt it gets)</summary><pre>${esc(briefFor(s, t))}</pre></details>` : ''}
+      <div class="actions"><button type="button" class="btn small" data-act="link">Copy link</button>${open ? '<button type="button" class="btn small primary" data-act="brief">Copy brief</button>' : ''}</div>`;
+  }
+
+  function anchorFor(id) {
+    const scope = view === 'map' ? $('map') : $('board');
+    const els = [...scope.querySelectorAll(`[data-task="${CSS.escape(id)}"]`), ...document.querySelectorAll(`aside [data-task="${CSS.escape(id)}"]`)];
+    return els.find(e => { const r = e.getBoundingClientRect(); return r.width && r.height; }) || null;
+  }
+  function placePop() {
+    if (!pop) return;
+    const el = $('pop');
+    const a = pop.anchor && pop.anchor.isConnected ? pop.anchor : anchorFor(pop.task);
+    pop.anchor = a;
+    if (!a) return;
+    const r = a.getBoundingClientRect();
+    const w = el.offsetWidth, h = el.offsetHeight;
+    let left = r.right + 12, top = r.top - 8;
+    if (left + w > innerWidth - 12) left = r.left - w - 12;
+    if (left < 12) left = Math.min(innerWidth - w - 12, Math.max(12, r.left));
+    if (top + h > innerHeight - 12) top = Math.max(12, innerHeight - h - 12);
+    el.style.left = left + 'px'; el.style.top = top + 'px';
+  }
+  function drawPop() {
+    const t = task(state, pop.task);
+    if (!t) return closePop(false);
+    const el = $('pop');
+    const sig = JSON.stringify([t, focus, t.claim && sessionBy(state, t.claim.session)]);
+    if (sig !== pop.sig) {
+      const d = el.querySelector('details.brief');
+      const briefOpen = d ? d.open : false;
+      el.innerHTML = popHtml(state, t, briefOpen);
+      pop.sig = sig;
+      const det = el.querySelector('details.brief'); if (det) det.addEventListener('toggle', placePop);
+    }
+    pop.anchor = null;
+    placePop();
+  }
+  function openPop(id, anchor) {
+    pop = { task: id, anchor, sig: null };
+    $('pop').hidden = false;
+    drawPop();
+    for (const r of document.querySelectorAll('.row.sel')) r.classList.remove('sel');
+    for (const r of document.querySelectorAll(`.row[data-task="${CSS.escape(id)}"]`)) r.classList.add('sel');
+    setHash('task=' + encodeURIComponent(id));
+    $('pop').querySelector('.close').focus();
+  }
+  function closePop(restore = true) {
+    if (!pop) return;
+    const p = pop; pop = null;
+    $('pop').hidden = true; $('pop').innerHTML = '';
+    for (const r of document.querySelectorAll('.row.sel')) r.classList.remove('sel');
+    setHash(focus ? 'agent=' + encodeURIComponent(focus) : '');
+    if (restore) (p.anchor && p.anchor.isConnected ? p.anchor : anchorFor(p.task))?.focus({ preventScroll: true });
+  }
+
+  // ---------- actions ----------
+  function toggleFocus(a) { focus = focus === a ? null : a; setHash(focus ? 'agent=' + encodeURIComponent(focus) : ''); if (pop) closePop(false); render(state); }
+  function setView(v) { if (v === view) return; view = v; store.set('view', v); if (pop) closePop(false); render(state); }
+  function showComponent(id) {
+    expanded.add(id); saveExpanded();
+    if (view !== 'map') { view = 'map'; store.set('view', 'map'); }
+    render(state);
+    const p = positions[id]; const k = Number($('canvas').dataset.k || 1);
+    if (p) $('map').scrollTo({ left: Math.max(0, p.x * k - 40), top: Math.max(0, p.y * k - 40), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    $('map').querySelector(`.card[data-comp="${CSS.escape(id)}"] .toggle`)?.focus({ preventScroll: true });
+  }
+
+  document.addEventListener('click', e => {
+    const el = e.target.closest('[data-act],[data-task],[data-agent],[data-toggle],[data-stage],[data-view]');
+    if (!el) { if (pop && !e.target.closest('#pop') && !e.target.closest('a')) closePop(false); return; }
+    const d = el.dataset;
+    if (d.act) {
+      const t = pop ? task(state, pop.task) : null;
+      if (d.act === 'close') closePop();
+      else if (d.act === 'brief') { const x = d.id ? task(state, d.id) : t; if (x) copy(briefFor(state, x), el, 'Brief copied'); }
+      else if (d.act === 'briefs') copy(JSON.parse(d.ids).map(id => briefFor(state, task(state, id))).join('\n\n---\n\n'), el, 'Briefs copied');
+      else if (d.act === 'resume') copy(`claude --resume ${d.session}`, el, 'Command copied');
+      else if (d.act === 'link' && t) copy(`${location.origin}${location.pathname}#task=${encodeURIComponent(t.id)}`, el, 'Link copied');
+      else if (d.act === 'show-comp') showComponent(d.comp);
+      else if (d.act === 'clear-focus') toggleFocus(focus);
+      else if (d.act === 'clear-filter') { stageFilter = null; render(state); }
+      else if (d.act === 'to-cap') { $('cap-h').scrollIntoView({ block: 'start' }); $('capacity').querySelector('button')?.focus({ preventScroll: true }); }
+      return;
+    }
+    if (d.task) { e.stopPropagation(); if (pop?.task === d.task) closePop(); else openPop(d.task, el); return; }
+    if (d.agent) { toggleFocus(d.agent); return; }
+    if (d.toggle) { if (expanded.has(d.toggle)) expanded.delete(d.toggle); else expanded.add(d.toggle); saveExpanded(); if (pop) closePop(false); render(state); return; }
+    if (d.stage) { stageFilter = stageFilter === d.stage ? null : d.stage; if (pop) closePop(false); render(state); announce(stageFilter ? `Showing ${STAGE_WORD[stageFilter]} tasks` : 'Showing all tasks'); return; }
+    if (d.view) setView(d.view);
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { if (pop) closePop(); else if ($('license').open) return; else if (stageFilter) { stageFilter = null; render(state); } else if (focus) toggleFocus(focus); return; }
+    if (pop && e.key === 'Tab') {
+      // keep Tab inside the popover while it is open
+      const f = [...$('pop').querySelectorAll('a[href], button, summary')].filter(x => x.offsetParent !== null);
+      if (f.length && !$('pop').contains(document.activeElement)) { e.preventDefault(); f[0].focus(); }
+      else if (f.length && e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+      else if (f.length && !e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+      return;
+    }
+    if (e.target.closest('input, textarea, [contenteditable]') || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'm') setView('map'); else if (e.key === 'b') setView('status');
+  });
+  $('map').addEventListener('scroll', () => placePop(), { passive: true });
+  $('board').addEventListener('scroll', () => placePop(), { passive: true, capture: true });
+  // hovering or focusing a card lights its edges
+  const lightEdges = id => { const svg = $('edges'); svg.classList.toggle('hl', !!id); for (const p of svg.querySelectorAll('path[data-a]')) p.classList.toggle('on', !!id && (p.dataset.a === id || p.dataset.b === id)); };
+  $('canvas').addEventListener('mouseover', e => lightEdges(e.target.closest('.card')?.dataset.comp || null));
+  $('canvas').addEventListener('mouseleave', () => lightEdges(null));
+  $('canvas').addEventListener('focusin', e => lightEdges(e.target.closest('.card')?.dataset.comp || null));
+
+  // ---------- focus survives a re-render ----------
+  const KEYS = ['task', 'toggle', 'agent', 'stage', 'view', 'act', 'comp', 'session', 'id'];
+  function focusKey() {
+    const a = document.activeElement;
+    if (!a || a === document.body || !a.dataset) return null;
+    const k = KEYS.find(k => a.dataset[k] !== undefined);
+    return k ? { k, v: a.dataset[k], scope: a.closest('[data-scope]')?.dataset.scope } : null;
+  }
+  function restoreFocus(f) {
+    if (!f || (document.activeElement && document.activeElement !== document.body)) return;
+    const el = document.querySelector(`${f.scope ? `[data-scope="${f.scope}"] ` : ''}[data-${f.k}="${CSS.escape(f.v)}"]`);
+    if (el) el.focus({ preventScroll: true });
+  }
+
+  // ---------- layout: layers by needs (longest path), columns left to right, ordered to cross fewer edges ----------
+  function layout(components, heights) {
     const byId = Object.fromEntries(components.map(c => [c.id, c]));
     const level = {};
     const depth = (id, seen = new Set()) => {
@@ -276,128 +541,239 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       level[id] = l; return l;
     };
     components.forEach(c => depth(c.id));
-    const cols = {};
+    const cols = [];
     components.forEach(c => (cols[level[c.id]] = cols[level[c.id]] || []).push(c));
-    const W = 300, GX = 64, GY = 28, H = 150, ROW = 42;
-    const pos = {};
-    const full = c => H + (expanded.has(c.id) ? 12 + Math.max(1, c.counts.total) * ROW + 2 : 0);
+    const rank = {};
+    cols.forEach((arr, l) => {
+      if (!arr) return;
+      if (l > 0) {
+        // barycentre of what a component needs, so its edges run as straight as they can
+        const bary = c => { const r = c.needs.filter(n => rank[n] !== undefined).map(n => rank[n]); return r.length ? r.reduce((a, b) => a + b, 0) / r.length : 1e9; };
+        arr.sort((a, b) => bary(a) - bary(b));
+      }
+      arr.forEach((c, i) => { rank[c.id] = i / Math.max(1, arr.length - 1); });
+    });
+    const W = 320, GX = 72, GY = 28;
+    const full = c => heights[c.id].card + (heights[c.id].list ? 12 + heights[c.id].list : 0);
     const colH = arr => arr.reduce((a, c) => a + full(c) + GY, -GY);
-    const maxH = Math.max(...Object.values(cols).map(colH));
-    for (const [l, arr] of Object.entries(cols)) {
+    const maxH = Math.max(0, ...cols.filter(Boolean).map(colH));
+    const pos = {};
+    cols.forEach((arr, l) => {
+      if (!arr) return;
       let y = 12 + (maxH - colH(arr)) / 2;
-      for (const c of arr) { pos[c.id] = { x: 12 + Number(l) * (W + GX), y, w: W, h: H, full: full(c) }; y += full(c) + GY; }
-    }
+      for (const c of arr) { pos[c.id] = { x: 12 + l * (W + GX), y, w: W, h: heights[c.id].card, full: full(c) }; y += full(c) + GY; }
+    });
     return pos;
   }
 
-  function render(s) {
-    state = s; const now = s.at;
-    $('repo').innerHTML = `<b>${esc(s.repo)}</b> · PLAN.md`; $('repo').title = s.root;
-    const live = s.sessions.filter(x => x.alive);
-    const done = s.tasks.filter(t => t.status === 'done').length, failed = s.tasks.filter(t => t.problems.length).length;
-    $('sum-tasks').textContent = `${done} of ${s.tasks.length} tasks done`;
-    $('sum-agents').textContent = `${live.length} agent${live.length === 1 ? '' : 's'} working`; $('sum-agents').className = 'pill' + (live.length ? ' ok' : '');
-    const high = s.conflicts.filter(c => c.severity === 'high').length;
-    $('sum-conf').textContent = s.conflicts.length ? `${s.conflicts.length} conflict${s.conflicts.length === 1 ? '' : 's'}` : 'No conflicts'; $('sum-conf').className = 'pill' + (high ? ' bad' : s.conflicts.length ? ' warn' : ' ok');
-    $('sum-evidence').textContent = failed ? `${failed} tick${failed === 1 ? '' : 's'} without evidence` : `Evidence verified${s.testsRun ? ', tests run' : ''}`; $('sum-evidence').className = 'pill' + (failed ? ' bad' : ' ok');
-    $('sum-lock').hidden = !s.locks.length; $('sum-lock').textContent = s.locks.map(l => `${l.name} locked by ${l.agent}`).join(', '); $('sum-lock').className = 'pill warn';
-    $('updated').textContent = `Updated ${new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+  function phaseOf(c) {
+    const t = c.counts;
+    if (c.agents.length || c.claims.length || t.active) return ['working', 'Agent working'];
+    if (t.blocked) return ['blocked', 'Blocked'];
+    if (!t.total) return ['empty', 'No tasks'];
+    if (!t.planned) return t.done ? ['done', t.roadmap ? 'Scope done' : 'Done'] : ['later', 'Roadmap only'];
+    return t.done ? ['progress', 'Work planned'] : ['new', 'Not started'];
+  }
 
-    // who is working right now
-    const active = s.sessions.filter(x => x.state === 'active');
-    const others = s.sessions.filter(x => x.state !== 'active');
-    const whereOf = x => { const f = x.files[0]; const comp = f && f.components[0] ? s.components.find(c => c.id === f.components[0]) : null; return { file: f ? f.file : null, at: f ? f.at : x.lastAt, comp }; };
-    if (focus && !s.sessions.some(x => x.agent === focus)) focus = null;
-    const focused = focus ? compsOf(s, s.sessions.find(x => x.agent === focus)) : null;
-    $('now').className = active.length ? '' : 'idle';
-    $('now').innerHTML = (active.length
-      ? `<span class="big">${active.length === 1 ? '1 agent is working right now' : `${active.length} agents are working right now`}</span>` +
-        active.map(x => { const w = whereOf(x); return `<button type="button" class="n${focus === x.agent ? ' focus' : ''}" data-agent="${esc(x.agent)}" title="Show only this agent's work"><span class="pulse"></span><b style="color:${colorOf(x.agent)}">${esc(label(x))}</b>${w.comp ? `<span class="where">in</span><span>#${esc(w.comp.id)} · ${esc(w.comp.title)}</span>` : ''}${w.file ? `<span class="where">·</span><code title="${esc(w.file)}">${esc(w.file)}</code><span class="where">${ago(w.at, now)} ago</span>` : ''}${x.claims.length ? `<span class="where">· holds</span><span>${x.claims.map(k => '#' + esc(k)).join(', ')}</span>` : ''}</button>`; }).join('')
-      : `<span class="big">No agent is working right now</span>`) +
-      (focus ? `<button type="button" class="clear" id="clear-focus">Showing only ${esc(focus)} — show all</button>` : '') +
-      (others.length ? `<span class="rest">${others.filter(x => x.state === 'open').length ? `${others.filter(x => x.state === 'open').length} open but idle · ` : ''}${others.filter(x => x.state !== 'open').length} ended or gone in the last 24 h</span>` : '');
-    for (const el of $('now').querySelectorAll('[data-agent]')) el.onclick = () => toggleFocus(el.dataset.agent);
-    const clr = $('clear-focus'); if (clr) clr.onclick = () => { focus = null; render(state); };
-
-    // map
-    positions = layout(s.components);
-    const map = $('canvas');
-    for (const el of [...map.querySelectorAll('.card, .tasks')]) el.remove();
-    let maxX = 0, maxY = 0;
+  function drawMap(s, now, focused) {
+    const canvas = $('canvas');
+    for (const el of [...canvas.querySelectorAll('.card, .tasks')]) el.remove();
+    $('map-empty').hidden = !!s.components.length;
+    if (!s.components.length) {
+      $('map-empty').innerHTML = `<h2>PLAN.md has no components yet</h2><p>Run <code>agentviz init</code> in the repository, then ask an agent to backfill PLAN.md from the code. Components appear here as soon as the file has <code>## Title {#id}</code> sections.</p>`;
+      $('edges').innerHTML = ''; return;
+    }
+    const els = {};
+    const match = t => !stageFilter || t.stage === stageFilter;
     for (const c of s.components) {
-      const p = positions[c.id]; maxX = Math.max(maxX, p.x + p.w); maxY = Math.max(maxY, p.y + p.full);
       const t = c.counts;
-      const phase = (t.active || c.agents.length || c.claims.length) ? 'working' : (t.total && t.done === t.total) ? 'done' : 'open';
+      const [phase, word] = phaseOf(c);
+      const ts = s.tasks.filter(x => x.component === c.id);
+      const off = (focused && !focused.has(c.id)) || (stageFilter && !ts.some(match));
       const el = document.createElement('div');
-      el.className = 'card ' + phase + (c.conflict === 'high' ? ' c-high' : c.conflict === 'medium' ? ' c-medium' : '') + (focused && !focused.has(c.id) ? ' dim' : '');
-      el.style.left = p.x + 'px'; el.style.top = p.y + 'px';
-      const pct = n => t.total ? (100 * n / t.total) + '%' : '0%';
-      const touched = c.touchedAt ? `touched ${ago(c.touchedAt, now)} ago` : c.lastCommit ? `${c.lastCommit.hash} · ${ago(c.lastCommit.at, now)} ago` : '';
+      el.className = 'card ' + phase + (c.conflict === 'high' ? ' c-high' : c.conflict === 'medium' ? ' c-medium' : '') + (off ? ' dim' : '') + (ts.some(x => flashIds.has(x.id)) ? ' flash' : '');
+      el.dataset.comp = c.id;
+      const seg = k => t[k] ? `<i class="${k}" style="flex-grow:${t[k]}" title="${t[k]} ${STAGE_WORD[k].toLowerCase()}"></i>` : '';
       const conflictText = c.conflict ? s.conflicts.filter(x => x.component === c.id || (x.components || []).includes(c.id))[0]?.text || '' : '';
-      el.innerHTML = `<div class="head"><span class="tech" title="${esc(c.tech)}">${esc(c.tech || c.files.join(', '))}</span><span class="status ${phase}">${phase === 'working' ? 'In progress' : phase === 'done' ? 'Done' : 'Open'}</span></div>
-        <h3>${esc(c.title)}</h3>
-        <div class="bar"><i class="d" style="width:${pct(t.done)}"></i><i class="a" style="width:${pct(t.active)}"></i><i class="b" style="width:${pct(t.blocked)}"></i></div>
-        <div class="meta"><span>${t.done} of ${t.total} done${t.active ? ` · ${t.active} in progress` : ''}${t.blocked ? ` · ${t.blocked} blocked` : ''}</span><span>${esc(touched)}</span></div>
-        ${c.agents.length || c.uncommitted ? `<div class="chips">${c.agents.map(a => `<button type="button" class="agent${focus === a ? ' focus' : ''}" data-agent="${esc(a)}" style="background:${colorOf(a)}">${esc(label(s.sessions.find(x => x.agent === a) || { agent: a }))}</button>`).join('')}${c.uncommitted ? `<span class="chip">${c.uncommitted} uncommitted</span>` : ''}</div>` : ''}
+      const extra = [t.active && `${t.active} in progress`, t.blocked && `${t.blocked} blocked`, t.planned && `${t.planned} planned`, t.roadmap && `${t.roadmap} roadmap`].filter(Boolean).join(' · ');
+      const when = c.touchedAt ? `touched ${ago(c.touchedAt, now)} ago` : c.lastCommit ? `${commitLink(s, c.lastCommit)} · ${ago(c.lastCommit.at, now)} ago` : '';
+      const needs = c.needs.filter(n => comp(s, n));
+      el.innerHTML = `<div class="head"><h3>${esc(c.title)}</h3><span class="status ${phase}">${word}</span></div>
+        <div class="tech" title="${esc(c.tech || c.files.join(', '))}">#${esc(c.id)} · ${esc(c.tech || c.files.join(', '))}</div>
+        <div class="bar" role="img" aria-label="${esc(`${t.done} of ${t.total} done${extra ? ', ' + extra : ''}`)}">${['done', 'active', 'blocked', 'planned', 'roadmap'].map(seg).join('')}${t.total ? '' : '<i style="flex-grow:1"></i>'}</div>
+        <div class="meta"><span>${t.done} of ${t.total} done${extra ? ' · ' + extra : ''}</span><span>${when}</span></div>
+        ${needs.length ? `<span class="sr">Builds on ${needs.map(n => '#' + esc(n)).join(', ')}.</span>` : ''}
+        ${c.agents.length || c.uncommitted ? `<div class="chips">${c.agents.map(a => agentChip(s, a)).join('')}${c.uncommitted ? `<span class="chip">${c.uncommitted} uncommitted</span>` : ''}</div>` : ''}
         ${c.evidenceFailed.length ? `<div class="flag">${ICON.warn}<span>Evidence missing for ${c.evidenceFailed.map(x => '#' + esc(x)).join(', ')}</span></div>` : ''}
         ${conflictText ? `<div class="flag">${ICON.warn}<span>${esc(conflictText)}</span></div>` : ''}
-        <button type="button" class="toggle${expanded.has(c.id) ? ' open' : ''}" data-toggle="${esc(c.id)}"><span>${expanded.has(c.id) ? 'Hide tasks' : `Show ${t.total} task${t.total === 1 ? '' : 's'}`}</span>${ICON.chevron}</button>`;
-      for (const chip of el.querySelectorAll('[data-agent]')) chip.onclick = e => { e.stopPropagation(); toggleFocus(chip.dataset.agent); };
-      el.querySelector('[data-toggle]').onclick = e => { e.stopPropagation(); if (expanded.has(c.id)) expanded.delete(c.id); else expanded.add(c.id); closePop(); render(state); };
-      map.appendChild(el);
+        <button type="button" class="toggle" data-toggle="${esc(c.id)}" aria-expanded="${expanded.has(c.id)}"><span>${expanded.has(c.id) ? 'Hide tasks' : `Show ${plural(t.total, 'task')}`}</span>${ICON.chevron}</button>`;
+      canvas.appendChild(el);
+      els[c.id] = { card: el };
       if (expanded.has(c.id)) {
         const list = document.createElement('div');
-        list.className = 'tasks' + (focused && !focused.has(c.id) ? ' dim' : '');
-        list.style.left = p.x + 'px'; list.style.top = (p.y + p.h + 12) + 'px';
-        const ts = s.tasks.filter(x => x.component === c.id);
-        let n = 0;
-        list.innerHTML = ts.map(x => { n++; const st = x.status; const badge = st === 'pending' ? (x.from === 'roadmap' ? 'Roadmap' : x.from === 'agent' ? 'Planned' : 'Open') : STATUS_WORD[st];
-          return `<button type="button" class="row ${st}" data-task="${esc(x.id)}"><span class="ic ${st}">${st === 'done' ? ICON.check : st === 'active' ? ICON.dots : st === 'blocked' ? ICON.bang : n}</span><span class="ttl">${esc(x.title)}</span>${x.problems.length ? `<span class="ev" title="${esc(x.problems.join('; '))}">${ICON.warn}</span>` : ''}<span class="badge ${st}">${badge}</span></button>`; }).join('') || '<div class="row"><span class="ttl empty">No tasks yet.</span></div>';
-        for (const b of list.querySelectorAll('[data-task]')) b.onclick = e => { e.stopPropagation(); openPop(s, s.tasks.find(x => x.id === b.dataset.task), b); };
-        map.appendChild(list);
+        list.className = 'tasks' + (off ? ' dim' : '');
+        const shown = ts.filter(match);
+        list.innerHTML = shown.map(x => rowHtml(s, x)).join('') || `<div class="row"><span class="ttl empty">${ts.length ? `No ${STAGE_WORD[stageFilter].toLowerCase()} tasks here.` : 'No tasks yet.'}</span></div>`;
+        canvas.appendChild(list);
+        els[c.id].list = list;
       }
+    }
+    // measure, then place: a card is as tall as what it shows
+    const heights = Object.fromEntries(Object.entries(els).map(([id, e]) => [id, { card: e.card.offsetHeight, list: e.list ? e.list.offsetHeight : 0 }]));
+    positions = layout(s.components, heights);
+    let maxX = 0, maxY = 0;
+    for (const [id, e] of Object.entries(els)) {
+      const p = positions[id];
+      e.card.style.left = p.x + 'px'; e.card.style.top = p.y + 'px';
+      if (e.list) { e.list.style.left = p.x + 'px'; e.list.style.top = (p.y + p.h + 12) + 'px'; }
+      maxX = Math.max(maxX, p.x + p.w); maxY = Math.max(maxY, p.y + p.full);
     }
     const svg = $('edges'); svg.setAttribute('width', maxX + 12); svg.setAttribute('height', maxY + 12);
     const avail = $('map').clientWidth - 40;
-    const k = Math.max(0.55, Math.min(1, avail / (maxX + 12)));
-    map.style.width = (maxX + 12) + 'px'; map.style.height = (maxY + 12) + 'px';
-    map.style.transform = `scale(${k})`; map.style.marginBottom = `${-(maxY + 12) * (1 - k)}px`; map.style.marginRight = `${-(maxX + 12) * (1 - k)}px`;
+    const k = Math.max(0.75, Math.min(1, avail / (maxX + 12)));
+    canvas.dataset.k = k;
+    canvas.style.width = (maxX + 12) + 'px'; canvas.style.height = (maxY + 12) + 'px';
+    canvas.style.transform = `scale(${k})`; canvas.style.marginBottom = `${-(maxY + 12) * (1 - k)}px`; canvas.style.marginRight = `${-(maxX + 12) * (1 - k)}px`;
     const path = (a, b, dashed) => {
       const pa = positions[a], pb = positions[b]; if (!pa || !pb) return '';
-      const x1 = pa.x + pa.w, y1 = pa.y + pa.h / 2, x2 = pb.x, y2 = pb.y + pb.h / 2;
-      const left = x2 < x1; const sx = left ? pa.x : x1, ex = left ? pb.x + pb.w : x2; const dx = Math.max(40, Math.abs(ex - sx) / 2) * (left ? -1 : 1);
+      const y1 = pa.y + pa.h / 2, y2 = pb.y + pb.h / 2;
+      let sx, ex, dx;
+      if (pa.x === pb.x) { sx = pa.x + pa.w; ex = pb.x + pb.w; dx = 48; }      // same column: loop out on the right
+      else { const left = pb.x < pa.x; sx = left ? pa.x : pa.x + pa.w; ex = left ? pb.x + pb.w : pb.x; dx = Math.max(40, Math.abs(ex - sx) / 2) * (left ? -1 : 1); }
       const dim = focused && !(focused.has(a) && focused.has(b));
-      return `<path d="M${sx},${y1} C${sx + dx},${y1} ${ex - dx},${y2} ${ex},${y2}" fill="none" stroke="${dim ? '#242a36' : dashed ? '#3a4356' : focused ? 'var(--work)' : '#6b7486'}" stroke-width="${dashed ? 1 : 1.5}" ${dashed ? 'stroke-dasharray="4 4"' : `marker-end="url(#${dim ? 'arrow-dim' : focused ? 'arrow-focus' : 'arrow'})"`}/>`;
+      const c2x = pa.x === pb.x ? ex + dx : ex - dx;
+      return `<path data-a="${esc(a)}" data-b="${esc(b)}" d="M${sx},${y1} C${sx + dx},${y1} ${c2x},${y2} ${ex},${y2}" fill="none" stroke="${dim ? '#242a36' : dashed ? 'var(--edge-link)' : focused ? 'var(--work)' : 'var(--edge)'}" stroke-width="${dashed ? 1.2 : 1.6}" ${dashed ? 'stroke-dasharray="4 4"' : `marker-end="url(#${dim ? 'arrow-dim' : focused ? 'arrow-focus' : 'arrow'})"`}/>`;
     };
-    let d = '<defs>' + [['arrow', '#6b7486'], ['arrow-dim', '#242a36'], ['arrow-focus', '#d9a62b']].map(([id, col]) => `<marker id="${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="${col}"/></marker>`).join('') + '</defs>';
+    let d = '<defs>' + [['arrow', '#7a8396'], ['arrow-dim', '#242a36'], ['arrow-focus', '#d9a62b']].map(([id, col]) => `<marker id="${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="${col}"/></marker>`).join('') + '</defs>';
     const seen = new Set();
     for (const c of s.components) {
       for (const n of c.needs) d += path(n, c.id, false);
-      for (const l of c.links) { const key = [c.id, l].sort().join('|'); if (!seen.has(key) && !c.needs.includes(l) && !(s.components.find(x => x.id === l)?.needs || []).includes(c.id)) { seen.add(key); d += path(c.id, l, true); } }
+      for (const l of c.links) { const key = [c.id, l].sort().join('|'); if (!seen.has(key) && !c.needs.includes(l) && !(comp(s, l)?.needs || []).includes(c.id)) { seen.add(key); d += path(c.id, l, true); } }
     }
     svg.innerHTML = d;
+  }
 
-    // agents (left): the focused agent's lane is open and shows everything about it
-    const stateText = x => x.state === 'active' ? `editing · ${ago(x.lastAt, now)} ago` : x.state === 'open' ? `open, no edits for ${ago(x.lastAt, now)}` : x.state === 'ended' ? `ended ${ago(x.lastAt, now)} ago` : `gone · last seen ${ago(x.lastAt, now)} ago`;
+  function drawBoard(s, focused) {
+    const cols = STAGES.filter(([k]) => !stageFilter || stageFilter === k);
+    $('board').innerHTML = cols.map(([k, w]) => {
+      const ts = s.tasks.filter(t => t.stage === k && (!focused || focused.has(t.component)));
+      const groups = s.components.map(c => [c, ts.filter(t => t.component === c.id)]).filter(([, g]) => g.length);
+      const loose = ts.filter(t => !comp(s, t.component));
+      return `<section class="col ${k}" aria-label="${w}" data-scope="col-${k}"><header><span class="dot ${k}"></span><h2>${w}</h2><span class="n">${ts.length}</span></header><p class="hint">${STAGE_HINT[k]}</p>
+        <div class="items">${groups.map(([c, g]) => `<div class="grp"><div class="gh">#${esc(c.id)} · ${esc(c.title)}</div>${g.map(t => rowHtml(s, t)).join('')}</div>`).join('')}${loose.length ? `<div class="grp"><div class="gh">No component</div>${loose.map(t => rowHtml(s, t)).join('')}</div>` : ''}${ts.length ? '' : '<p class="empty" style="padding:10px 6px">Nothing here.</p>'}</div></section>`;
+    }).join('');
+  }
+
+  function drawOverview(s, now, active, others) {
+    const S = s.summary;
+    const pct = S.total ? Math.round(100 * S.done / S.total) : 0;
+    const scope = S.total - S.roadmap;
+    const ov = $('overview');
+    const bar = STAGES.filter(([k]) => k !== 'roadmap').concat([['roadmap', 'Roadmap']]).filter(([k]) => S[k]);
+    const cap = s.capacity;
+    const capText = cap.lanes.length ? `Room for ${plural(cap.lanes.length, 'more agent')}` : S.planned ? 'No free lane: planned work sits in busy or coupled components' : cap.roadmap.lanes.length ? `Nothing planned · ${plural(cap.roadmap.lanes.length, 'lane')} if roadmap work is pulled in` : '';
+    ov.innerHTML = `${live || !booted ? '' : `<div class="stale-note" role="status">Connection lost. Showing the plan as of ${clock(s.at)}; reconnecting…</div>`}
+      <div class="ov-num"><span class="pct">${pct}%<small>done</small></span><span class="of">${S.done} of ${plural(S.total, 'task')}${S.roadmap ? ` · current scope ${S.done} of ${scope}${scope ? ` (${Math.round(100 * S.done / scope)}%)` : ''}` : ''}</span></div>
+      <div class="ov-status">
+        <div class="sbar" role="img" aria-label="${esc(STAGES.map(([k, w]) => `${S[k]} ${w.toLowerCase()}`).join(', '))}">${bar.map(([k, w]) => `<i class="${k}" style="flex-grow:${S[k]}" title="${S[k]} ${w.toLowerCase()}"></i>`).join('') || '<i style="flex-grow:1"></i>'}</div>
+        <div class="legend" role="group" aria-label="Show tasks of one stage">${['done', 'active', 'blocked', 'planned', 'roadmap'].map(k => `<button type="button" class="stage-btn${S[k] ? '' : ' zero'}" data-stage="${k}" aria-pressed="${stageFilter === k}" title="${esc(STAGE_HINT[k])}"><span class="dot ${k}"></span>${STAGE_WORD[k]} <b>${S[k]}</b></button>`).join('')}</div>
+      </div>
+      <div class="ov-agents${active.length ? '' : ' idle'}">
+        <span class="big">${active.length ? `${plural(active.length, 'agent')} working` : 'No agent is working right now'}</span>
+        ${active.map(x => { const f = x.files[0]; const cid = f?.components[0]; return `<span class="n">${agentChip(s, x.agent)}${cid ? `<span class="where">in</span>${compLink(s, cid)}` : f ? '<em class="outside">outside the plan</em>' : ''}${f ? `<code title="${esc(f.file)}">${esc(f.file)}</code><span class="where">${ago(f.at, now)} ago</span>` : ''}${x.claims.length ? `<span class="where">holds</span>${x.claims.map(k => taskLink(s, k)).join(' ')}` : ''}</span>`; }).join('')}
+        ${focus ? `<button type="button" class="lnk clear" data-act="clear-focus">Showing only ${esc(focus)}${(() => { const x = sessionBy(s, focus); return x && !compsOf(s, x).size ? ', who works outside the plan' : ''; })()} · show all</button>` : ''}
+        ${others.length ? `<span class="where empty">${others.filter(x => x.state === 'open').length ? `${others.filter(x => x.state === 'open').length} open but idle · ` : ''}${others.filter(x => x.state !== 'open').length} ended or gone today</span>` : ''}
+        ${capText ? `<button type="button" class="lnk cap" data-act="to-cap">${capText} →</button>` : ''}
+      </div>`;
+  }
+
+  function drawCapacity(s) {
+    const cap = s.capacity;
+    const S = s.summary;
+    const fromRoadmap = !cap.lanes.length && !S.planned && cap.roadmap.lanes.length;
+    const use = fromRoadmap ? cap.roadmap : cap;
+    const reason = h => h.reason === 'waits' ? `waits until #${esc(h.on)} has started` : h.reason === 'conflict' ? 'has a conflict to settle first' : h.reason === 'busy' ? `coupled to #${esc(h.on)}, where an agent works` : `coupled to #${esc(h.on)}, suggested above`;
+    let head;
+    if (cap.lanes.length) head = `<div class="capn"><b>${cap.suggested}</b><span>agents can work in parallel now</span></div><p>${cap.running ? `${plural(cap.running, 'agent')} running, ` : ''}${plural(cap.lanes.length, 'free lane')} with planned work. Start one agent per lane:</p>`;
+    else if (S.planned) head = `<div class="capn"><b>${cap.running}</b><span>${cap.running === 1 ? 'agent is' : 'agents are'} enough for now</span></div><p>${plural(S.planned, 'planned task')}, but every component with planned work is busy, coupled to a busy one, or waiting.</p>`;
+    else if (fromRoadmap) head = `<div class="capn"><b>${cap.roadmap.suggested}</b><span>agents, if you pull roadmap work in</span></div><p>Nothing is planned for now. ${plural(S.roadmap, 'open task')} ${S.roadmap === 1 ? 'is' : 'are'} on the roadmap. These lanes could run in parallel${cap.running ? ` next to the ${plural(cap.running, 'agent')} running` : ''}:</p>`;
+    else head = `<div class="capn"><b>${cap.running}</b><span>${S.total ? 'no open work left' : 'no tasks yet'}</span></div><p>${S.total ? 'Every task is done or claimed. Add tasks to PLAN.md to plan the next step.' : 'Add components and tasks to PLAN.md.'}</p>`;
+    const lanes = use.lanes.map(l => { const c = comp(s, l.component); const t = task(s, l.next); return `<div class="sug"><div class="r1">${compLink(s, l.component)}<span>${plural(l.planned, fromRoadmap ? 'roadmap task' : 'task')}</span></div>
+      <div class="r2"><span>Next: <button type="button" class="lnk" data-task="${esc(l.next)}">${esc(t ? t.title : l.next)}</button></span><button type="button" class="btn small" data-act="brief" data-id="${esc(l.next)}">Copy brief</button></div></div>`; }).join('');
+    const all = use.lanes.length > 1 ? `<button type="button" class="btn small" data-act="briefs" data-ids="${esc(JSON.stringify(use.lanes.map(l => l.next)))}">Copy all ${use.lanes.length} briefs</button>` : '';
+    const held = use.held.length ? `<details class="held"><summary>${plural(use.held.length, 'more component')} with open work held back</summary><ul>${use.held.map(h => `<li>${compLink(s, h.component)} ${reason(h)}</li>`).join('')}</ul></details>` : '';
+    $('capacity').innerHTML = head + lanes + all + held + (use.lanes.length || use.held.length ? `<div class="why">One agent per component: components own disjoint files. A component that shares a needs or links edge with a busy or suggested one is held back, because coupled components change the same surface.</div>` : '');
+  }
+
+  function drawAside(s, now, active, others) {
+    drawCapacity(s);
     const lane = x => {
       const open = focus === x.agent;
       const comps = [...compsOf(s, x)];
+      const files = x.files.slice(0, open ? 100 : 6);
       return `<div class="lane ${x.state}">
         <button type="button" class="who" data-agent="${esc(x.agent)}" aria-expanded="${open}" title="${open ? 'Show all agents' : 'Show only this agent\'s work'}">${x.state === 'active' ? '<span class="pulse"></span>' : ''}<span class="name">${x.name ? `${esc(x.name)} <small>· ${esc(x.agent)}</small>` : esc(x.agent)}</span><span class="state ${x.state}">${x.state}</span></button>
-        <div class="sub"><span>${esc(stateText(x))}</span>${x.claims.length ? `<span class="holds">holds ${x.claims.map(k => '#' + esc(k)).join(', ')}</span>` : ''}</div>
-        <ul class="files">${x.files.slice(0, open ? 100 : 6).map(f => `<li title="${esc(f.file)}"><span class="mono">${esc(f.file)}</span><span>${f.components.map(c => '#' + esc(c)).join(' ') || '–'} · ${ago(f.at, now)}</span></li>`).join('')}${!open && x.files.length > 6 ? `<li><span class="empty">… ${x.files.length - 6} more</span></li>` : ''}${!x.files.length ? '<li><span class="empty">no file changed in the last 24 h</span></li>' : ''}</ul>
-        ${open ? `<div class="detail"><dl class="kv"><dt>Session</dt><dd><code>${esc(x.id)}</code></dd>${x.transcript ? `<dt>Transcript</dt><dd><code title="${esc(x.transcript.path)}">${esc(x.transcript.path.split(/[\\/]/).pop())}</code> · ${x.transcript.exists ? `written ${ago(x.transcript.at, now)} ago` : 'missing'}</dd>` : ''}<dt>Holds</dt><dd>${x.claims.length ? x.claims.map(k => { const t = s.tasks.find(t => t.id === k); return `#${esc(k)}${t ? ` — ${esc(t.title)}` : ''}`; }).join('<br>') : '<span class="empty">no task</span>'}</dd><dt>Components</dt><dd>${comps.length ? comps.map(c => { const cc = s.components.find(y => y.id === c); return `#${esc(c)}${cc ? ` · ${esc(cc.title)}` : ''}`; }).join('<br>') : '<span class="empty">none the plan owns</span>'}</dd></dl></div>` : ''}
+        <div class="sub"><span>${esc(stateText(x, now))}</span>${x.claims.length ? `<span class="holds">holds ${x.claims.map(k => taskLink(s, k)).join(', ')}</span>` : ''}</div>
+        <ul class="files">${files.map(f => `<li title="${esc(f.file)}">${fileLink(s, f.file, null, esc(f.file), 'mono')}<span>${f.components.length ? f.components.map(c => '#' + esc(c)).join(' ') : '<em class="outside">outside the plan</em>'} · ${ago(f.at, now)}</span></li>`).join('')}${!open && x.files.length > 6 ? `<li><span class="empty">… ${x.files.length - 6} more</span></li>` : ''}${!x.files.length ? '<li><span class="empty">no file changed in the last 24 h</span></li>' : ''}</ul>
+        ${open ? `<div class="detail"><dl class="kv">
+          <dt>Session</dt><dd><code>${esc(x.id)}</code><br><button type="button" class="btn small" data-act="resume" data-session="${esc(x.id)}" style="margin-top:6px">Copy resume command</button></dd>
+          ${x.transcript ? `<dt>Transcript</dt><dd><code title="${esc(x.transcript.path)}">${esc(x.transcript.path.split(/[\\/]/).pop())}</code> · ${x.transcript.exists ? `written ${ago(x.transcript.at, now)} ago` : 'missing'}</dd>` : ''}
+          <dt>Holds</dt><dd>${x.claims.length ? x.claims.map(k => taskLink(s, k, true)).join('<br>') : '<span class="empty">no task</span>'}</dd>
+          ${x.finished.length ? `<dt>Finished</dt><dd>${x.finished.map(k => taskLink(s, k, true)).join('<br>')}</dd>` : ''}
+          <dt>Components</dt><dd>${comps.length ? comps.map(c => compLink(s, c)).join('<br>') : '<em class="outside">none: it works outside the plan</em>'}</dd></dl></div>` : ''}
       </div>`;
     };
     $('agents').innerHTML = (active.length ? `<div class="empty" style="margin-bottom:8px">Working now · ${active.length}</div>` + active.map(lane).join('') : '<div class="empty" style="margin-bottom:10px">Working now · none</div>') +
       (others.length ? `<div class="empty" style="margin:14px 0 8px">Earlier today · ${others.length}</div>` + others.map(lane).join('') : '');
-    for (const el of $('agents').querySelectorAll('[data-agent]')) el.onclick = () => toggleFocus(el.dataset.agent);
 
-    // conflicts
-    $('conflicts').innerHTML = s.conflicts.length ? s.conflicts.map(c => `<div class="conf ${c.severity}"><span class="sev"></span><span>${esc(c.text)}</span></div>`).join('') : '<div class="empty">None. Agents are in separate files and components.</div>';
+    const blocked = s.tasks.filter(t => t.stage === 'blocked');
+    $('blocked-wrap').hidden = !blocked.length;
+    $('blocked').innerHTML = blocked.map(t => `<div class="blocked-item">${rowHtml(s, t, { showComp: true })}${t.check || t.problems.length ? `<div class="why2">${esc(t.check || t.problems.join('; '))}</div>` : ''}</div>`).join('');
 
-    // working tree
-    $('changes').innerHTML = s.changes.length ? `<ul class="changes">${s.changes.slice(0, 24).map(c => `<li title="${esc(c.file)}"><span><span class="st mono">${esc(c.status)}</span><span class="mono">${esc(c.file)}</span></span><span>${c.components.map(x => '#' + esc(x)).join(' ')}</span></li>`).join('')}${s.changes.length > 24 ? `<li><span class="empty">… ${s.changes.length - 24} more</span></li>` : ''}</ul>` : '<div class="empty">Working tree clean.</div>';
+    const SEV = { high: 'High', medium: 'Medium', low: 'Low' };
+    $('conflicts').innerHTML = s.conflicts.length ? s.conflicts.map(c => `<div class="conf ${c.severity}"><span class="sev" aria-hidden="true"></span><span><span class="sevw">${SEV[c.severity]}</span>${esc(c.text)}</span></div>`).join('') : '<div class="empty">None. Agents are in separate files and components.</div>';
+    $('changes').innerHTML = s.changes.length ? `<ul class="changes">${s.changes.slice(0, 24).map(c => `<li title="${esc(c.file)}"><span><span class="st mono">${esc(c.status)}</span>${c.status === 'D' ? `<span class="mono">${esc(c.file)}</span>` : fileLink(s, c.file, null, esc(c.file), 'mono')}</span><span>${c.components.map(x => '#' + esc(x)).join(' ') || '<em class="outside">outside the plan</em>'}</span></li>`).join('')}${s.changes.length > 24 ? `<li><span class="empty">… ${s.changes.length - 24} more</span></li>` : ''}</ul>` : '<div class="empty">Working tree clean.</div>';
+  }
+
+  function drawHeader(s) {
+    $('repo').innerHTML = `<b>${esc(s.repo)}</b> · PLAN.md`; $('repo').title = s.root;
+    const failed = s.tasks.filter(t => t.problems.length).length;
+    const high = s.conflicts.filter(c => c.severity === 'high').length;
+    $('sum-conf').textContent = s.conflicts.length ? plural(s.conflicts.length, 'conflict') : 'No conflicts'; $('sum-conf').className = 'pill' + (high ? ' bad' : s.conflicts.length ? ' warn' : ' ok');
+    $('sum-evidence').textContent = failed ? `${plural(failed, 'tick')} without evidence` : s.testsRun ? 'Evidence and tests verified' : 'Evidence paths verified';
+    $('sum-evidence').title = s.testsRun ? '' : 'Cited files and line ranges exist. Start the board with --tests to also run the cited tests.';
+    $('sum-evidence').className = 'pill' + (failed ? ' bad' : ' ok');
+    $('sum-lock').textContent = s.locks.map(l => `${l.name} locked by ${l.agent}`).join(', ');
+    $('updated').textContent = live ? `Updated ${clock(s.at)}` : `Data from ${clock(s.at)}`;
+  }
+
+  function render(s, fresh = false) {
+    if (!s) return;
+    const fk = focusKey();
+    state = s;
+    const now = Date.now();
+    if (fresh) {
+      // what changed stage since the last state flashes once
+      const stages = Object.fromEntries(s.tasks.map(t => [t.id, t.stage]));
+      flashIds = new Set(prevStages ? Object.keys(stages).filter(id => prevStages[id] && prevStages[id] !== stages[id]) : []);
+      if (flashIds.size) announce(`${plural(flashIds.size, 'task')} changed: ${[...flashIds].map(id => `#${id} ${STAGE_WORD[stages[id]].toLowerCase()}`).join(', ')}`);
+      prevStages = stages;
+    } else flashIds = new Set();
+    if (focus && !s.sessions.some(x => x.agent === focus)) focus = null;
+    const fs = focus ? compsOf(s, sessionBy(s, focus)) : null;
+    const focused = fs && fs.size ? fs : null;     // an agent outside the plan dims nothing
+    const active = s.sessions.filter(x => x.state === 'active');
+    const others = s.sessions.filter(x => x.state !== 'active');
+    drawHeader(s);
+    drawOverview(s, now, active, others);
+    drawAside(s, now, active, others);
+    for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-selected', String(b.dataset.view === view));
+    $('map').hidden = view !== 'map'; $('board').hidden = view !== 'status'; $('edge-key').hidden = view !== 'map';
+    $('filter-note').innerHTML = stageFilter ? `Showing ${STAGE_WORD[stageFilter].toLowerCase()} tasks · <button type="button" class="lnk" data-act="clear-filter">show all</button>` : '';
+    if (view === 'map') drawMap(s, now, focused); else drawBoard(s, focused);
+    if (pop) drawPop();
+    restoreFocus(fk);
+    booted = true;
   }
 
   // ---------- license ----------
@@ -405,15 +781,33 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
   $('license-close').onclick = () => $('license').close();
   $('license').addEventListener('click', e => { if (e.target === $('license')) $('license').close(); });
 
+  // ---------- deep links: #task=<id> opens a task, #agent=<label> shows one agent's work ----------
+  function followHash() {
+    const h = new URLSearchParams(location.hash.slice(1));
+    if (h.get('agent') && state.sessions.some(x => x.agent === h.get('agent'))) { focus = h.get('agent'); render(state); }
+    const id = h.get('task'); const t = id && task(state, id);
+    if (t) { if (view === 'map' && t.component) { expanded.add(t.component); render(state); } openPop(id, anchorFor(id)); }
+  }
+
   // ---------- live connection ----------
   function connect() {
     const es = new EventSource('/events');
-    es.addEventListener('state', e => { $('conn').className = 'pill ok'; $('conn').innerHTML = '<span class="dot"></span> Live'; render(JSON.parse(e.data)); });
-    es.onerror = () => { $('conn').className = 'pill bad'; $('conn').innerHTML = '<span class="dot"></span> Reconnecting'; };
+    es.addEventListener('state', e => {
+      const first = !state;
+      live = true; document.body.classList.remove('stale');
+      $('conn').className = 'pill ok'; $('conn').innerHTML = '<span class="dot"></span> Live';
+      render(JSON.parse(e.data), true);
+      if (first) followHash();
+    });
+    es.onerror = () => {
+      live = false; document.body.classList.add('stale');
+      $('conn').className = 'pill bad'; $('conn').innerHTML = '<span class="dot"></span> Reconnecting';
+      if (state) render(state);
+    };
   }
   connect();
-  setInterval(() => { if (state) render({ ...state, at: Date.now() }); }, 30000);
-  let resizeTimer; addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => state && render(state), 150); });
+  setInterval(() => state && render(state), 30000);
+  let resizeTimer; addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => render(state), 150); });
 })();
 </script>
 </body>

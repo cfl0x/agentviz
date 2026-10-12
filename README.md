@@ -8,21 +8,32 @@ agentviz is for repositories where several AI coding agents (Claude Code session
 - **Claims that mean something.** An agent's `[~]` is a claim every other session sees. It lasts while the session is active, ends with the session or after 30 minutes without activity, and the task then falls back. A second agent marking the same task is reverted and told who holds it.
 - **No mixed edits.** Writing a file another live session changed within the lease is refused. A different file of a claimed component only warns. Deploy commands take one lock.
 - **Ticks you can audit.** Every `[x]` names its evidence (files, line ranges, tests) on its `tech:` line; `agentviz check` verifies them and turns a tick whose evidence is gone into `[!]`. It only ever takes ticks away.
-- **A board that shows facts.** Components along their dependency edges with progress, the agents live in each, uncommitted changes and the last commit per component, the state of every tick, and the conflicts derived from what agents really did: two agents in one file, two agents in one component, work without a claim, claims that fell back. Sessions are **active**, **open** (still up, not editing), **ended** or **gone** (their Claude Code transcript is missing or silent for a day).
+- **A board that shows facts.** The whole plan at a glance (done, in progress, blocked, planned, roadmap), components along their dependency edges, every task on a status board, the agents live in each component, uncommitted changes and the last commit per component, the state of every tick, and the conflicts derived from what agents really did: two agents in one file, two agents in one component, work without a claim, work outside every component, claims that fell back. Sessions are **active**, **open** (still up, not editing), **ended** or **gone** (their Claude Code transcript is missing or silent for a day).
+- **How many agents to run.** The board counts the lanes that can take an agent now without stepping on another one, names the next task in each and hands you its brief.
 
 No dependencies. Node 20 or newer, git, and Claude Code for the hooks (the check and the board work with any agent that maintains PLAN.md).
 
-## Install
+## Setup: one step
+
+In the repository your agents work on:
 
 ```bash
-npm install -g agentviz        # or run it from a clone: node <clone>/agentviz/cli.js …
-cd your-repo
-agentviz init
+npx -y github:cfl0x/agentviz setup
 ```
 
-`init` writes the plan convention into `CLAUDE.md` and `AGENTS.md`, a `PLAN.md` skeleton when none exists, the Claude Code hooks into `.claude/settings.json`, and `plan:board` / `plan:check` scripts into `package.json` (when present). Then ask your agent to backfill `PLAN.md` from the code: every `[x]` must cite its evidence.
+That is all. `setup`:
+
+1. copies agentviz into `.agentviz/` in the repository. Commit it: every clone then has the hooks, and nothing depends on a global install or the npx cache,
+2. writes the plan convention into `CLAUDE.md` and `AGENTS.md`, a `PLAN.md` skeleton when none exists, the Claude Code hooks into `.claude/settings.json` (pointing at `.agentviz/hook.js`), and `plan:board` / `plan:check` scripts into `package.json` (when present),
+3. opens the board in the browser.
+
+Then ask your agent to backfill `PLAN.md` from the code: every `[x]` must cite its evidence. Run `setup` again to update the copy. `--no-board` skips opening the board.
+
+The package is not on the npm registry (the name `agentviz` there belongs to a different project), so install it from GitHub. A global install works as well: `npm install -g github:cfl0x/agentviz`, then `agentviz init` in a repository.
 
 ## Use
+
+With the copy in `.agentviz/` call `node .agentviz/cli.js …` or the npm scripts; with a global install, `agentviz …`.
 
 ```bash
 agentviz board            # http://localhost:5340 ; --open opens the browser, --port n, --tests also runs cited tests
@@ -32,6 +43,16 @@ agentviz check --tests    # also run every test file the ticked tasks cite
 ```
 
 `check` exits 1 when evidence fails, so it can run after a merge in CI.
+
+## The board
+
+- **Status at a glance.** One number (the share of tasks done), one bar across all tasks and a count per stage: done, in progress, blocked, planned and roadmap. *Current scope* leaves the roadmap out. Each stage filters the map and the status board.
+- **Map and status board.** The map shows the components along their `needs:` (arrows) and `links:` (dashed) edges, with the tasks of a component unfolded under it. The status board (`b`, back to the map with `m`) shows every task in a column per stage, grouped by component.
+- **Parallel agents.** Components own disjoint files, so each takes one agent. A component is a free lane when it has planned work, nobody is in it, nothing there is in conflict and every component it needs has started. A component that shares an edge with a busy or already suggested one is held back, because coupled components change the same surface. The panel names the next task per lane and copies its brief; when nothing is planned, it shows what pulling roadmap work in would allow.
+- **From a task to the work.** A task opens a popover with its stage, the component and what it builds on, the agent holding it (one click shows only that agent's work), the files that agent changed there, the session with a ready `claude --resume` command, the commit that ticked it (linked on GitHub, GitLab or Bitbucket), its evidence as links into the editor and its line in `PLAN.md`. Open tasks carry a brief for an agent. `#task=<id>` links straight to a task.
+- **From an agent to its tasks.** An agent's lane lists the tasks it holds and finished, its components and every file it changed; a file outside every component is marked *outside the plan*.
+
+`AGENTVIZ_EDITOR` sets the editor the links open (`vscode`, the default; `cursor`, `vscode-insiders`, … or `none`).
 
 ## The plan convention
 
@@ -56,7 +77,7 @@ links: [engine]
 
 - `## Title {#id}` is a component: a part one agent can own for a session. Titles are verb-led and concrete; the engineer phrasing goes on `tech:`. Keep 5–9 components; split only when one agent could not own it any more.
 - `files:` globs declare which paths the component owns — this is how edits are attributed. `needs:` are sequencing edges, `links:` coupling.
-- Tasks: `[ ]` open, `[~]` in progress (with `by:`), `[x]` done (with evidence on `tech:`), `[!]` stuck. `from: agent` or `from: roadmap` names where an open task came from.
+- Tasks: `[ ]` open, `[~]` in progress (with `by:`), `[x]` done (with evidence on `tech:`), `[!]` stuck. `from: agent` or `from: roadmap` names where an open task came from; `from: roadmap` keeps it out of the current scope (the board shows it as *roadmap*, every other open task as *planned*).
 - `{#id}`s never change. Plan-affecting decisions go under `## decisions` before the work.
 
 The full text that `init` installs for agents is in [cli.js](cli.js).
@@ -65,7 +86,7 @@ The full text that `init` installs for agents is in [cli.js](cli.js).
 
 Every hook event (file written, PLAN.md changed, session start/stop) is appended to a file of its own session under the repository's git common directory (`.git/agentviz/sessions/<session>.jsonl`), so sessions in different worktrees see each other and none can overwrite another. Statuses are reduced from those events; a claim is a lease. `check` and the board read the same events, git and PLAN.md. Nothing is committed and nothing leaves the machine.
 
-Environment: `AGENTVIZ_HOOK=off` disables the hooks for a session; `AGENTVIZ_LEASE_MINUTES` (30) sets the lease; `AGENTVIZ_ALLOW_SHARED_FILES=1` turns the same-file refusal into a warning; `AGENTVIZ_LOCK_COMMANDS` is a regular expression for the commands that take the deploy lock; `AGENTVIZ_PORT` sets the board's port.
+Environment: `AGENTVIZ_HOOK=off` disables the hooks for a session; `AGENTVIZ_LEASE_MINUTES` (30) sets the lease; `AGENTVIZ_ALLOW_SHARED_FILES=1` turns the same-file refusal into a warning; `AGENTVIZ_LOCK_COMMANDS` is a regular expression for the commands that take the deploy lock; `AGENTVIZ_PORT` sets the board's port; `AGENTVIZ_EDITOR` the editor its file links open.
 
 ## Development
 

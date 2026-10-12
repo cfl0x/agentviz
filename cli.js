@@ -115,8 +115,15 @@ function init() {
   settings.hooks = settings.hooks || {};
   const entry = { type: 'command', command: hookCmd, timeout: 15 };
   const has = arr => (arr || []).some(h => (h.hooks || []).some(x => /hook\.js/.test(x.command || '')));
+  // an update repoints hooks an earlier install left at another copy (an old folder, the npx cache, a global install)
+  let repointed = 0;
+  for (const arr of Object.values(settings.hooks)) for (const h of arr || []) for (const x of h.hooks || []) {
+    if (/agentviz/i.test(x.command || '') && /hook\.js/.test(x.command || '') && x.command !== hookCmd) { x.command = hookCmd; repointed++; }
+  }
+  if (repointed) out.push(`.claude/settings.json: ${repointed} hook${repointed === 1 ? '' : 's'} moved to ${hookCmd}`);
   for (const ev of ['PreToolUse', 'PostToolUse']) if (!has(settings.hooks[ev])) (settings.hooks[ev] = settings.hooks[ev] || []).push({ matcher: 'Edit|Write|MultiEdit|NotebookEdit|Bash', hooks: [entry] });
-  for (const ev of ['SessionStart', 'Stop', 'SessionEnd']) if (!has(settings.hooks[ev])) (settings.hooks[ev] = settings.hooks[ev] || []).push({ hooks: [entry] });
+  // SubagentStart / SubagentStop make each subagent an agent of its own (start and end, claims released at the end)
+  for (const ev of ['SessionStart', 'Stop', 'SessionEnd', 'SubagentStart', 'SubagentStop']) if (!has(settings.hooks[ev])) (settings.hooks[ev] = settings.hooks[ev] || []).push({ hooks: [entry] });
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
   out.push(`.claude/settings.json: hooks -> ${hookCmd}`);

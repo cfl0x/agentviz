@@ -29,6 +29,17 @@ That is all. `setup`:
 
 Then ask your agent to backfill `PLAN.md` from the code: every `[x]` must cite its evidence. Run `setup` again to update the copy. `--no-board` skips opening the board.
 
+### Update
+
+Run `setup` again in the repository, with the version you want, and commit `.agentviz/`:
+
+```bash
+npx -y github:cfl0x/agentviz#v1.0.2 setup      # a release: any tag from https://github.com/cfl0x/agentviz/releases
+npx -y github:cfl0x/agentviz setup             # the newest state of the main branch
+```
+
+It replaces the copy in `.agentviz/`, adds hooks a newer version needs, and moves hooks an earlier install left at another place (an old `agentviz/` folder, the npx cache, a global install) to the copy. With a global install: `npm install -g github:cfl0x/agentviz#v1.0.2`, then `agentviz init` in each repository. `agentviz --version` (or `node .agentviz/cli.js --version`) says which version runs.
+
 The package is not on the npm registry (the name `agentviz` there belongs to a different project), so install it from GitHub. A global install works as well: `npm install -g github:cfl0x/agentviz`, then `agentviz init` in a repository.
 
 ## Use
@@ -47,10 +58,11 @@ agentviz check --tests    # also run every test file the ticked tasks cite
 ## The board
 
 - **Status at a glance.** One number (the share of tasks done), one bar across all tasks and a count per stage: done, in progress, blocked, planned and roadmap. *Current scope* leaves the roadmap out. Each stage filters the map and the status board.
-- **Map and status board.** The map shows the components along their `needs:` (arrows) and `links:` (dashed) edges, with the tasks of a component unfolded under it. The status board (`b`, back to the map with `m`) shows every task in a column per stage, grouped by component.
+- **Map and status board.** The map shows the components along their `needs:` (arrows) and `links:` (dashed) edges. A card shows only its title, state, progress and the agents in it; a click opens the component in a side panel: its tasks by stage, what it builds on, what uses it, what it is coupled to, the files it owns and its last change. Zoom with `+` / `-` (or Ctrl and the wheel), `0` or *Reset view* shows the whole plan, the minimap and dragging the canvas move the view. The status board (`b`, back to the map with `m`) shows every task in a column per stage, grouped by component.
 - **Parallel agents.** Components own disjoint files, so each takes one agent. A component is a free lane when it has planned work, nobody is in it, nothing there is in conflict and every component it needs has started. A component that shares an edge with a busy or already suggested one is held back, because coupled components change the same surface. The panel names the next task per lane and copies its brief; when nothing is planned, it shows what pulling roadmap work in would allow.
 - **From a task to the work.** A task opens a popover with its stage, the component and what it builds on, the agent holding it (one click shows only that agent's work), the files that agent changed there, the session with a ready `claude --resume` command, the commit that ticked it (linked on GitHub, GitLab or Bitbucket), its evidence as links into the editor and its line in `PLAN.md`. Open tasks carry a brief for an agent. `#task=<id>` links straight to a task.
 - **From an agent to its tasks.** An agent's lane lists the tasks it holds and finished, its components and every file it changed; a file outside every component is marked *outside the plan*.
+- **Subagents.** A subagent that a session starts (the Agent tool, parallel waves in worktrees) is an agent of its own, `claude#166b › a623`, nested under its session: its own claims, its own file guard, its own start and end (`SubagentStart` / `SubagentStop`). A session and its subagents never block each other; two sibling subagents do. A session working in a linked worktree without a subagent id is keyed by the worktree (`claude#166b › wt-<folder>`).
 
 `AGENTVIZ_EDITOR` sets the editor the links open (`vscode`, the default; `cursor`, `vscode-insiders`, … or `none`).
 

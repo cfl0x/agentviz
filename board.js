@@ -131,7 +131,9 @@ function lanesFor(components, tasks, live, stage) {
     else if (near1) held.push({ component: c.id, planned: open.length, reason: busy.includes(near1) ? 'busy' : 'coupled', on: near1 });
     else { lanes.push({ component: c.id, planned: open.length, next: open[0].id }); taken.push(c.id); }
   }
-  return { running: live.length, busy, lanes, held, suggested: live.length + lanes.length };
+  // a session whose subagents work counts through them, not as one more agent
+  const running = live.filter(s => !live.some(x => x.parent && x.parent === s.id)).length;
+  return { running, busy, lanes, held, suggested: running + lanes.length };
 }
 
 // ---------- session names ----------
@@ -202,7 +204,9 @@ function build(loc, { runTests = false, now = Date.now(), gitCache = {}, tickCac
     const transcriptLive = transcript?.exists && now - transcript.at < lib.LEASE_MS;
     const state = s.alive ? 'active' : s.ended ? 'ended' : transcriptLive ? 'open' : (transcript && (!transcript.exists || now - transcript.at > ACTIVITY_WINDOW_MS)) ? 'gone' : (now - s.lastAt > ACTIVITY_WINDOW_MS ? 'gone' : 'open');
     return {
-      id: s.id, agent: s.agent, name: sessionName(s.transcript, s.id), alive: s.alive, ended: s.ended, state, lastAt: s.lastAt, transcript,
+      // a subagent (or a worktree agent) names its parent session; its name is its type (Explore, general-purpose, …)
+      id: s.id, agent: s.agent, parent: s.parent, subagent: s.subagent, subagentType: s.subagentType, worktree: s.worktree,
+      name: s.parent ? s.subagentType || (s.worktree ? `worktree ${s.worktree}` : null) : sessionName(s.transcript, s.id), alive: s.alive, ended: s.ended, state, lastAt: s.lastAt, transcript,
       files: [...s.files].filter(([, at]) => now - at < ACTIVITY_WINDOW_MS).sort((a, b) => b[1] - a[1]).map(([file, at]) => ({ file, at, components: compOf(file) })),
       components: [...s.components], planned: [...s.planned],
       claims: view.claims.filter(c => c.session === s.id).map(c => c.task),
@@ -216,18 +220,22 @@ function build(loc, { runTests = false, now = Date.now(), gitCache = {}, tickCac
   // conflicts
   const conflicts = [];
   const live = sessions.filter(s => s.alive);
+  // a parent session and its subagents are one family: they share files and claims without a conflict; siblings do not
+  const apart = who => who.some((a, i) => who.some((b, j) => j > i && !lib.related(a.id, b.id)));
+  const plannedBy = s => new Set(sessions.filter(x => lib.related(x.id, s.id)).flatMap(x => x.planned));
   const byFile = {};
-  for (const s of live) for (const f of s.files) if (now - f.at < lib.LEASE_MS) (byFile[f.file] = byFile[f.file] || []).push({ agent: s.agent, at: f.at });
-  for (const [file, who] of Object.entries(byFile)) if (who.length > 1) conflicts.push({ kind: 'file', severity: 'high', file, components: compOf(file), agents: who.map(w => w.agent), text: `${who.map(w => w.agent).join(' and ')} both changed ${file}` });
+  for (const s of live) for (const f of s.files) if (now - f.at < lib.LEASE_MS) (byFile[f.file] = byFile[f.file] || []).push({ id: s.id, agent: s.agent, at: f.at });
+  for (const [file, who] of Object.entries(byFile)) if (apart(who)) conflicts.push({ kind: 'file', severity: 'high', file, components: compOf(file), agents: who.map(w => w.agent), text: `${who.map(w => w.agent).join(' and ')} both changed ${file}` });
   const byComp = {};
-  for (const s of live) for (const c of new Set(s.files.filter(f => now - f.at < lib.LEASE_MS).flatMap(f => f.components))) (byComp[c] = byComp[c] || new Set()).add(s.agent);
-  for (const [c, who] of Object.entries(byComp)) if (who.size > 1 && !conflicts.some(x => x.kind === 'file' && x.components.includes(c))) conflicts.push({ kind: 'component', severity: 'medium', component: c, agents: [...who], text: `${[...who].join(' and ')} are both working in #${c}` });
+  for (const s of live) for (const c of new Set(s.files.filter(f => now - f.at < lib.LEASE_MS).flatMap(f => f.components))) (byComp[c] = byComp[c] || []).push({ id: s.id, agent: s.agent });
+  for (const [c, who] of Object.entries(byComp)) if (apart(who) && !conflicts.some(x => x.kind === 'file' && x.components.includes(c))) conflicts.push({ kind: 'component', severity: 'medium', component: c, agents: who.map(w => w.agent), text: `${who.map(w => w.agent).join(' and ')} are both working in #${c}` });
   for (const s of live) {
     const touched = new Set(s.files.filter(f => now - f.at < lib.LEASE_MS).flatMap(f => f.components));
+    const planned = plannedBy(s);
     for (const c of touched) {
-      const holder = view.claims.find(x => x.component === c && x.session !== s.id);
-      if (holder && !s.planned.includes(c)) conflicts.push({ kind: 'claim', severity: 'medium', component: c, agents: [s.agent, holder.by], text: `${s.agent} changes #${c} while ${holder.by} holds #${holder.task} there` });
-      else if (!s.planned.includes(c)) conflicts.push({ kind: 'unplanned', severity: 'low', component: c, agents: [s.agent], text: `${s.agent} changes #${c} without a claimed task there` });
+      const holder = view.claims.find(x => x.component === c && !lib.related(x.session, s.id));
+      if (holder && !planned.has(c)) conflicts.push({ kind: 'claim', severity: 'medium', component: c, agents: [s.agent, holder.by], text: `${s.agent} changes #${c} while ${holder.by} holds #${holder.task} there` });
+      else if (!planned.has(c)) conflicts.push({ kind: 'unplanned', severity: 'low', component: c, agents: [s.agent], text: `${s.agent} changes #${c} without a claimed task there` });
     }
   }
   for (const s of live) {

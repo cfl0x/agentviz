@@ -250,5 +250,26 @@ test('setup copies agentviz into .agentviz and points the hooks and scripts ther
   const again = spawnSync(process.execPath, [path.join(dir, '.agentviz', 'cli.js'), 'setup', '--no-board'], { cwd: dir, encoding: 'utf8' });
   assert.equal(again.status, 0, again.stderr);
   const hooks = fs.readFileSync(path.join(dir, '.claude', 'settings.json'), 'utf8').match(/agentviz\/hook\.js/g);
-  assert.equal(hooks.length, 5, 'running setup again adds no second hook');
+  assert.equal(hooks.length, 7, 'running setup again adds no second hook (seven events)');
+});
+
+test('subagents: nested under their session, no conflict with their parent, a conflict between siblings', () => {
+  const dir = repo();
+  const { stateDir } = lib.locate(dir);
+  const now = Date.now();
+  const sub = (id, file, at) => lib.append(stateDir, { at, session: lib.subKey('aaaa1111', id), agent: lib.subLabel('aaaa1111', id), parent: 'aaaa1111', subagent: id, subagentType: 'general-purpose', type: 'touch', file, components: ['ingest'] });
+  touch(stateDir, 'aaaa1111', 'src/ingest/webhook.js', ['ingest'], now - 60e3);
+  sub('agent-a623f0', 'src/ingest/webhook.js', now - 30e3);
+  let s = board.build(lib.locate(dir), { now });
+  assert.equal(s.conflicts.filter(c => c.kind === 'file' || c.kind === 'component').length, 0, 'parent and child share the file');
+  const child = s.sessions.find(x => x.subagent === 'agent-a623f0');
+  assert.equal(child.parent, 'aaaa1111');
+  assert.equal(child.agent, 'claude#aaaa › a623');
+  assert.equal(child.name, 'general-purpose');
+  assert.equal(s.capacity.running, 1, 'a session whose subagent works counts through it');
+  sub('agent-b7c1d2', 'src/ingest/webhook.js', now - 10e3);
+  s = board.build(lib.locate(dir), { now });
+  const file = s.conflicts.find(c => c.kind === 'file');
+  assert.ok(file, 'two sibling subagents in one file');
+  assert.equal(s.capacity.running, 2);
 });

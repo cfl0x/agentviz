@@ -159,3 +159,96 @@ test('the PLAN.md of the repository agentviz is installed in passes its own evid
   const failed = Object.values(results).filter(r => r.problems.length).map(r => `#${r.task.id}: ${r.problems.join('; ')}`);
   assert.deepEqual(failed, []);
 });
+
+// ---------- subagents: one agent per subagent inside a session ----------
+const subWrite = (dir, session, agentId, rel) => {
+  const ev = k => ({ session_id: session, ...(agentId ? { agent_id: agentId, agent_type: 'general-purpose' } : {}), hook_event_name: k, tool_name: 'Write', tool_input: { file_path: path.join(dir, rel) } });
+  const pre = hook(dir, ev('PreToolUse'));
+  if (pre.code !== 0) return { pre };
+  fs.writeFileSync(path.join(dir, rel), `// ${session} ${agentId}\n`);
+  return { pre, post: hook(dir, ev('PostToolUse')) };
+};
+const subPlan = (dir, session, agentId, from, to) => {
+  const p = path.join(dir, 'PLAN.md');
+  fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace(from, to));
+  return hook(dir, { session_id: session, agent_id: agentId, agent_type: 'general-purpose', hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: p } });
+};
+
+test('each subagent is an agent of its own: siblings are guarded against each other, parent and child are not', () => {
+  const dir = scratchRepo();
+  hook(dir, { session_id: 'aaaa1111', agent_id: 'agent-a623f0', agent_type: 'general-purpose', hook_event_name: 'SubagentStart' });
+  assert.equal(subWrite(dir, 'aaaa1111', 'agent-a623f0', 'src/ingest/webhook.js').pre.code, 0);
+  const sibling = subWrite(dir, 'aaaa1111', 'agent-b7c1d2', 'src/ingest/webhook.js');
+  assert.equal(sibling.pre.code, 2, 'a sibling subagent may not write the same file');
+  assert.match(sibling.pre.stderr, /by claude#aaaa › a623, which is still working/);
+  assert.equal(subWrite(dir, 'aaaa1111', null, 'src/ingest/webhook.js').pre.code, 0, 'the parent session may');
+  assert.equal(subWrite(dir, 'aaaa1111', 'agent-a623f0', 'src/ingest/webhook.js').pre.code, 0, 'and so may the subagent after its parent');
+  const { stateDir } = lib.locate(dir);
+  const view = lib.reduce(lib.readEvents(stateDir));
+  const sub = view.sessions['aaaa1111~agent-a623f0'];
+  assert.equal(sub.agent, 'claude#aaaa › a623');
+  assert.equal(sub.parent, 'aaaa1111');
+  assert.equal(sub.subagentType, 'general-purpose');
+});
+
+test('subagents claim apart, SubagentStop releases only that subagent, SessionEnd ends the rest', () => {
+  const dir = scratchRepo();
+  subPlan(dir, 'aaaa1111', 'agent-a623f0', '- [ ] Accept webhooks', '- [~] Accept webhooks');
+  const taken = subPlan(dir, 'aaaa1111', 'agent-b7c1d2', '  by: claude#aaaa › a623', '  by: claude#aaaa › b7c1');
+  assert.equal(taken.context, '', 'rewriting the by: line records nothing');
+  subPlan(dir, 'aaaa1111', 'agent-b7c1d2', '- [ ] Run steps', '- [~] Run steps');
+  const { stateDir } = lib.locate(dir);
+  let view = lib.reduce(lib.readEvents(stateDir));
+  assert.deepEqual(view.claims.map(c => [c.task, c.by]).sort(), [['engine-core', 'claude#aaaa › b7c1'], ['ingest-webhook', 'claude#aaaa › a623']]);
+  assert.equal(view.sessions.aaaa1111, undefined, 'the parent did nothing itself yet');
+  hook(dir, { session_id: 'aaaa1111', agent_id: 'agent-a623f0', agent_type: 'general-purpose', hook_event_name: 'SubagentStop', agent_transcript_path: path.join(dir, 'agent-a623f0.jsonl') });
+  view = lib.reduce(lib.readEvents(stateDir));
+  assert.deepEqual(view.claims.map(c => c.task), ['engine-core'], 'the finished subagent gave its claim back');
+  assert.equal(view.sessions['aaaa1111~agent-a623f0'].ended, true);
+  assert.match(planText(dir), /- \[ \] Accept webhooks/);
+  hook(dir, { session_id: 'aaaa1111', hook_event_name: 'SessionEnd' });
+  view = lib.reduce(lib.readEvents(stateDir));
+  assert.equal(view.claims.length, 0, 'the session took its other subagent along');
+  assert.equal(view.sessions['aaaa1111~agent-b7c1d2'].ended, true);
+});
+
+test('a session working in a linked worktree without a subagent id is keyed by the worktree', () => {
+  const dir = scratchRepo();
+  const g = a => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
+  g(['config', 'user.email', 't@example.com']); g(['config', 'user.name', 't']);
+  g(['add', '.']); g(['commit', '-q', '-m', 'first']);
+  const wt = path.join(path.dirname(dir), path.basename(dir) + '-wave');
+  g(['worktree', 'add', '-q', wt]);
+  assert.equal(lib.locate(wt).worktree, path.basename(wt));
+  assert.equal(lib.locate(dir).worktree, null);
+  fs.mkdirSync(path.join(wt, 'src', 'engine'), { recursive: true });
+  const r = subWrite(wt, 'aaaa1111', null, 'src/engine/core.js');
+  assert.equal(r.pre.code, 0);
+  const view = lib.reduce(lib.readEvents(lib.locate(dir).stateDir));
+  const key = `aaaa1111~wt-${path.basename(wt)}`;
+  assert.ok(view.sessions[key], Object.keys(view.sessions).join());
+  assert.equal(view.sessions[key].agent, `claude#aaaa › wt-${path.basename(wt)}`.slice(0, `claude#aaaa › `.length + 16));
+  assert.ok(view.sessions[key].files.has('src/engine/core.js'), 'the path counts relative to the worktree');
+});
+
+test('init registers SubagentStart and SubagentStop', () => {
+  const dir = scratchRepo();
+  const r = spawnSync(process.execPath, [path.join(__dirname, '..', 'cli.js'), 'init'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  const hooks = JSON.parse(fs.readFileSync(path.join(dir, '.claude', 'settings.json'), 'utf8')).hooks;
+  for (const ev of ['PreToolUse', 'PostToolUse', 'SessionStart', 'Stop', 'SessionEnd', 'SubagentStart', 'SubagentStop']) assert.ok(hooks[ev], ev);
+});
+
+test('init moves hooks an earlier install left at another copy of agentviz', () => {
+  const dir = scratchRepo();
+  fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
+  const old = 'node "$CLAUDE_PROJECT_DIR/agentviz/hook.js"';
+  fs.writeFileSync(path.join(dir, '.claude', 'settings.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Edit', hooks: [{ type: 'command', command: old }] }], Stop: [{ hooks: [{ type: 'command', command: 'echo unrelated' }] }] } }));
+  const r = spawnSync(process.execPath, [path.join(__dirname, '..', 'cli.js'), 'init'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /1 hook moved to/);
+  const text = fs.readFileSync(path.join(dir, '.claude', 'settings.json'), 'utf8');
+  assert.ok(!text.includes('$CLAUDE_PROJECT_DIR/agentviz/hook.js'), 'the old copy is no longer called');
+  assert.match(text, /echo unrelated/, 'hooks of other tools stay');
+  assert.equal(JSON.parse(text).hooks.PreToolUse.length, 1, 'no second agentviz entry');
+});

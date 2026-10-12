@@ -30,15 +30,34 @@ function git(cwd, args) {
   return r.status === 0 ? r.stdout.trim() : null;
 }
 
-/** { root, stateDir } for a working directory inside the repository (a worktree counts), or null outside git. */
+/**
+ * { root, stateDir, worktree } for a working directory inside the repository, or null outside git. A linked worktree
+ * (`git worktree add`) shares the state directory of the main checkout; `worktree` is its folder name, null in the main
+ * checkout.
+ */
 function locate(cwd) {
   const root = git(cwd, ['rev-parse', '--show-toplevel']);
   if (!root) return null;
-  const common = git(cwd, ['rev-parse', '--path-format=absolute', '--git-common-dir']) || path.join(root, '.git');
-  return { root: path.resolve(root), stateDir: path.join(path.resolve(common), 'agentviz') };
+  const common = path.resolve(git(cwd, ['rev-parse', '--path-format=absolute', '--git-common-dir']) || path.join(root, '.git'));
+  const main = path.basename(common) === '.git' ? path.dirname(common) : null;
+  const here = path.resolve(root);
+  const worktree = main && path.relative(main, here) !== '' ? path.basename(here) : null;
+  return { root: here, stateDir: path.join(common, 'agentviz'), worktree };
 }
 
 const agentLabel = (sessionId, agent = 'claude') => `${agent}#${String(sessionId || 'manual').replace(/[^a-z0-9]/gi, '').slice(0, 4) || 'anon'}`;
+
+/**
+ * Subagents. Claude Code runs a subagent inside its parent's session: its hook events carry the parent's session_id
+ * plus an agent_id. An agent is therefore keyed by session and subagent, `<session>~<sub>`, and labelled
+ * `claude#166b › a623`. `sub` is the subagent id, or `wt-<folder>` for a session working in a linked worktree without a
+ * subagent id. Parent and child count as one family: they never block each other; siblings do.
+ */
+const subKey = (sessionId, sub) => `${sessionId}~${String(sub)}`;
+const subShort = sub => { const s = String(sub); return s.startsWith('wt-') ? s.slice(0, 16) : s.replace(/^agent-/, '').replace(/[^a-z0-9]/gi, '').slice(0, 4) || 'sub'; };
+const subLabel = (sessionId, sub, agent = 'claude') => `${agentLabel(sessionId, agent)} › ${subShort(sub)}`;
+const rootOf = key => String(key).split('~')[0];
+const related = (a, b) => a === b || rootOf(a) === b || rootOf(b) === a;
 
 // ---------- PLAN.md ----------
 
@@ -152,9 +171,12 @@ function reduce(events, now = Date.now()) {
   const sessions = {};
   const last = {};
   for (const e of events) {
-    const s = sessions[e.session] || (sessions[e.session] = { id: e.session, agent: e.agent, lastAt: 0, ended: false, transcript: null, files: new Map(), components: new Set(), planned: new Set() });
+    const s = sessions[e.session] || (sessions[e.session] = { id: e.session, agent: e.agent, parent: String(e.session).includes('~') ? rootOf(e.session) : null, subagent: null, subagentType: null, worktree: null, lastAt: 0, ended: false, transcript: null, files: new Map(), components: new Set(), planned: new Set() });
     s.lastAt = Math.max(s.lastAt, e.at);
     if (e.agent) s.agent = e.agent;
+    if (e.subagent) s.subagent = e.subagent;
+    if (e.subagentType) s.subagentType = e.subagentType;
+    if (e.worktree) s.worktree = e.worktree;
     if (e.transcript) s.transcript = e.transcript;
     if (e.type === 'end') s.ended = true;
     else if (e.type === 'start') s.ended = false;
@@ -162,6 +184,8 @@ function reduce(events, now = Date.now()) {
     if (e.type === 'status' && e.task) { last[e.task] = e; if (e.component) s.planned.add(e.component); }
   }
   for (const s of Object.values(sessions)) s.alive = !s.ended && now - s.lastAt < LEASE_MS;
+  // a session waiting on its subagents is still working, and its claims hold
+  for (const s of Object.values(sessions)) if (s.alive && s.parent && sessions[s.parent] && !sessions[s.parent].ended) sessions[s.parent].alive = true;
   const statuses = {};
   const claims = [];
   const released = [];
@@ -191,14 +215,14 @@ function acquireLock(stateDir, name, { session, agent, ttlMs = 45 * 60e3, note =
   const file = lockFile(stateDir, name);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const held = readLock(stateDir, name);
-  if (held && held.session !== session && held.expiresAt > now) return { ok: false, holder: held };
+  if (held && !related(held.session, session) && held.expiresAt > now) return { ok: false, holder: held };
   const lock = { name, session, agent, at: now, expiresAt: now + ttlMs, note };
   // exclusive create when free; a stale or own lock is replaced
   try {
     if (!held) fs.writeFileSync(file, JSON.stringify(lock), { flag: 'wx' });
     else fs.writeFileSync(file, JSON.stringify(lock));
   } catch (e) {
-    if (e.code === 'EEXIST') { const other = readLock(stateDir, name); if (other && other.session !== session) return { ok: false, holder: other }; }
+    if (e.code === 'EEXIST') { const other = readLock(stateDir, name); if (other && !related(other.session, session)) return { ok: false, holder: other }; }
     else throw e;
   }
   return { ok: true, holder: lock };
@@ -206,7 +230,7 @@ function acquireLock(stateDir, name, { session, agent, ttlMs = 45 * 60e3, note =
 
 function releaseLock(stateDir, name, session) {
   const held = readLock(stateDir, name);
-  if (held && held.session === session) { try { fs.unlinkSync(lockFile(stateDir, name)); } catch { /* gone */ } return true; }
+  if (held && related(held.session, session)) { try { fs.unlinkSync(lockFile(stateDir, name)); } catch { /* gone */ } return true; }
   return false;
 }
 
@@ -231,6 +255,6 @@ function syncPlan(root, stateDir, now = Date.now()) {
 }
 
 module.exports = {
-  LEASE_MS, locate, agentLabel, parsePlan, globToRe, componentsOf, relPath, applyStatuses,
+  LEASE_MS, locate, agentLabel, subKey, subLabel, rootOf, related, parsePlan, globToRe, componentsOf, relPath, applyStatuses,
   append, readEvents, reduce, acquireLock, releaseLock, readLock, locksOf, syncPlan,
 };

@@ -1,0 +1,42 @@
+{
+  "name": "agentviz",
+  "version": "1.0.0",
+  "description": "See what your coding agents actually do. A PLAN.md convention for parallel agents, Claude Code hooks that share claims and keep agents out of each other's files, an evidence check for every tick, and a live board of the plan and the agents on it. Depends on git only.",
+  "keywords": [
+    "claude-code",
+    "agents",
+    "coding-agents",
+    "plan",
+    "hooks",
+    "parallel",
+    "board",
+    "visualization"
+  ],
+  "license": "MIT",
+  "author": "Florian Farr",
+  "homepage": "https://github.com/cfl0x/agentviz#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cfl0x/agentviz.git"
+  },
+  "bin": {
+    "agentviz": "cli.js"
+  },
+  "main": "lib.js",
+  "files": [
+    "cli.js",
+    "board.js",
+    "board.html",
+    "check.js",
+    "hook.js",
+    "lib.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test/tooling.test.js test/board.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

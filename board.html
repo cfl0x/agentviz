@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentViz</title>
+<style>
+  :root {
+    --bg:#0e1116; --panel:#141821; --surface:#1a1f29; --raised:#202634; --line:#2a3140; --line-strong:#3a4356;
+    --text:#e8ebf1; --text-2:#aab2c3; --muted:#7d8699;
+    --done:#3fb950; --done-ink:#0a1a0f; --done-bg:#15291c;
+    --work:#d9a62b; --work-ink:#1b1400; --work-bg:#2a2414;
+    --open:#7d8699; --bad:#f0574f; --bad-bg:#3a1c1b; --accent:#6ea8ff;
+    --shadow:0 6px 24px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.4);
+    --r:8px; --r-lg:12px;
+  }
+  * { box-sizing:border-box }
+  html { color-scheme:dark; scrollbar-color:var(--line-strong) var(--panel) }
+  ::selection { background:#2c4a7a; color:#fff }
+  ::-webkit-scrollbar { width:10px; height:10px } ::-webkit-scrollbar-thumb { background:var(--line-strong); border-radius:5px; border:2px solid var(--panel) } ::-webkit-scrollbar-track { background:var(--panel) }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased }
+  button { font:inherit; color:inherit }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:4px }
+  code, .mono { font-family:"Cascadia Code", "JetBrains Mono", ui-monospace, Consolas, monospace; font-size:13px }
+  h1, h2, h3 { margin:0; font-weight:600; text-wrap:balance }
+
+  /* ---------- header ---------- */
+  header { display:flex; align-items:center; gap:20px; height:56px; padding:0 20px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:5 }
+  .brand { display:flex; align-items:center; gap:10px; min-width:0 }
+  .brand svg { width:22px; height:22px; flex:none }
+  .brand h1 { font-size:18px; letter-spacing:-.01em; white-space:nowrap }
+  .brand .repo { color:var(--text-2); font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+  .brand .repo b { color:var(--text); font-weight:600 }
+  .stats { display:flex; gap:8px; flex-wrap:wrap }
+  .pill { display:inline-flex; align-items:center; gap:7px; height:28px; padding:0 11px; border-radius:999px; border:1px solid var(--line); background:var(--surface); color:var(--text-2); font-size:13px; white-space:nowrap }
+  .pill .dot { width:7px; height:7px; border-radius:50%; background:currentColor }
+  .pill.ok { color:var(--done); border-color:#2a4a33 } .pill.bad { color:var(--bad); border-color:#5a2a28 } .pill.warn { color:var(--work); border-color:#5a4a1e }
+  .pill[hidden] { display:none }
+  header .right { margin-left:auto; display:flex; align-items:center; gap:14px; color:var(--muted); font-size:13px; white-space:nowrap }
+  .btn { height:30px; padding:0 12px; border-radius:var(--r); border:1px solid var(--line-strong); background:var(--surface); color:var(--text); cursor:pointer; font-size:13px; font-weight:500 }
+  .btn:hover { background:var(--raised) } .btn:active { background:var(--line) }
+  .btn.small { height:26px; padding:0 9px; font-size:12px }
+
+  /* ---------- frame ---------- */
+  main { display:grid; grid-template-columns:360px minmax(0, 1fr); height:calc(100vh - 56px) }
+  aside { background:var(--panel); border-right:1px solid var(--line); overflow:auto; padding:16px 16px 24px }
+  aside h2 { font-size:12px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:22px 0 10px } aside h2:first-child { margin-top:0 }
+  aside h2 small { color:var(--muted); font-weight:500; letter-spacing:0; text-transform:none; margin-left:6px }
+  .empty { color:var(--muted); font-size:13px }
+  .center { display:flex; flex-direction:column; min-width:0; min-height:0 }
+
+  /* ---------- now ---------- */
+  #now { display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--panel) }
+  #now .big { font-size:18px; font-weight:600; letter-spacing:-.01em } #now.idle .big { color:var(--text-2); font-weight:500 }
+  #now .n { display:inline-flex; align-items:center; gap:8px; height:34px; padding:0 14px 0 12px; border-radius:999px; background:var(--surface); border:1px solid var(--line-strong); font-size:14px; cursor:pointer; max-width:100% }
+  #now .n:hover { border-color:var(--text-2) } #now .n.focus { border-color:var(--text); background:var(--raised) }
+  #now .n b { font-weight:600 } #now .n .where { color:var(--muted) } #now .n code { color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:28ch }
+  #now .clear { font-size:13px; color:var(--text-2); cursor:pointer; text-decoration:underline; text-underline-offset:3px; background:none; border:0; padding:0 }
+  #now .rest { color:var(--muted); font-size:13px; margin-left:auto }
+  .pulse { width:9px; height:9px; border-radius:50%; background:var(--done); flex:none; animation:pulse 1.8s cubic-bezier(.2,.8,.2,1) infinite }
+  @keyframes pulse { 0% { box-shadow:0 0 0 0 rgba(63,185,80,.55) } 100% { box-shadow:0 0 0 9px rgba(63,185,80,0) } }
+  @media (prefers-reduced-motion: reduce) { .pulse { animation:none } }
+
+  /* ---------- map ---------- */
+  #map { position:relative; overflow:auto; flex:1; padding:20px; background-image:radial-gradient(var(--line) 1px, transparent 1px); background-size:24px 24px /* the map is a canvas: the dot grid is its surface, not decoration */ }
+  #canvas { position:relative; transform-origin:0 0 }
+  #canvas svg { position:absolute; left:0; top:0; pointer-events:none; overflow:visible }
+  .card { position:absolute; width:300px; background:var(--surface); border:1px solid var(--line-strong); border-radius:var(--r-lg); padding:12px 14px 10px; cursor:default; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:border-color .15s, opacity .2s, filter .2s }
+  .card:hover { border-color:var(--text-2) }
+  .card.done { border-color:#2f6b40 } .card.working { border-color:var(--work); background:#1f1d17 }
+  .card.c-high { border-color:var(--bad); box-shadow:0 0 0 1px var(--bad), 0 1px 2px rgba(0,0,0,.3) } .card.c-medium { border-color:var(--bad); border-style:dashed }
+  .card.dim, .tasks.dim { opacity:.16; filter:grayscale(1) }
+  .card .head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px }
+  .card .tech { color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0 }
+  .status { flex:none; font-size:12px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; height:20px; padding:0 8px; border-radius:4px; display:inline-flex; align-items:center }
+  .status.done { color:var(--done); background:var(--done-bg) } .status.working { color:var(--work); background:var(--work-bg) } .status.open { color:var(--text-2); background:var(--raised) }
+  .card h3 { font-size:16px; line-height:1.3; margin:6px 0 10px }
+  .bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; display:flex }
+  .bar i { display:block; height:100% } .bar .d { background:var(--done) } .bar .a { background:var(--work) } .bar .b { background:var(--bad) }
+  .meta { display:flex; justify-content:space-between; gap:10px; color:var(--text-2); font-size:12px; margin-top:8px }
+  .meta span:last-child { color:var(--muted); white-space:nowrap }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; min-height:0 }
+  .agent { font-size:12px; font-weight:600; height:22px; padding:0 9px; border-radius:999px; color:#0b0d12; display:inline-flex; align-items:center; gap:6px; cursor:pointer; border:0 }
+  .agent.focus { box-shadow:0 0 0 2px var(--text) }
+  .chip { font-size:12px; height:22px; padding:0 9px; border-radius:999px; border:1px solid var(--line-strong); color:var(--text-2); display:inline-flex; align-items:center }
+  .flag { font-size:12px; color:var(--bad); margin-top:8px; display:flex; gap:6px; align-items:flex-start } .flag svg { flex:none; margin-top:2px }
+  .card .toggle { margin:10px -14px -10px; padding:8px 14px; border-top:1px solid var(--line); border-radius:0 0 var(--r-lg) var(--r-lg); background:none; border-left:0; border-right:0; border-bottom:0; width:calc(100% + 28px); text-align:left; display:flex; align-items:center; justify-content:space-between; color:var(--text-2); font-size:12px; font-weight:500; cursor:pointer }
+  .card .toggle:hover { color:var(--text); background:var(--raised) } .card .toggle svg { transition:transform .15s } .card .toggle.open svg { transform:rotate(180deg) }
+
+  /* ---------- task list under a card ---------- */
+  .tasks { position:absolute; width:300px; background:var(--surface); border:1px solid var(--line-strong); border-radius:var(--r-lg); overflow:hidden; box-shadow:0 1px 2px rgba(0,0,0,.3) }
+  .tasks .row { display:flex; align-items:center; gap:10px; height:42px; padding:0 12px; border-top:1px solid var(--line); font-size:13px; cursor:pointer; width:100%; background:none; border-left:0; border-right:0; border-bottom:0; text-align:left }
+  .tasks .row:first-child { border-top:0 } .tasks .row:hover { background:var(--raised) }
+  .ic { width:22px; height:22px; border-radius:50%; flex:none; display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; border:1.5px solid var(--line-strong); color:var(--text-2) }
+  .ic.done { background:var(--done); border-color:var(--done); color:var(--done-ink) } .ic.active { background:var(--work); border-color:var(--work); color:var(--work-ink) } .ic.blocked { background:var(--bad); border-color:var(--bad); color:#fff }
+  .ic svg { width:12px; height:12px }
+  .tasks .ttl { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap } .tasks .row.pending .ttl { color:var(--text-2) }
+  .badge { font-size:12px; height:22px; padding:0 9px; border-radius:999px; background:var(--raised); color:var(--text-2); flex:none; display:inline-flex; align-items:center }
+  .badge.done { background:var(--done-bg); color:var(--done) } .badge.active { background:var(--work-bg); color:var(--work) } .badge.blocked { background:var(--bad-bg); color:var(--bad) }
+  .tasks .ev { color:var(--bad); flex:none; display:inline-flex }
+
+  /* ---------- agents (left) ---------- */
+  .lane { border:1px solid var(--line); border-radius:var(--r); margin-bottom:8px; background:var(--surface) }
+  .lane.active { border-color:#2f6b40 } .lane.ended, .lane.gone { opacity:.55 }
+  .lane .who { display:flex; align-items:center; gap:8px; width:100%; padding:10px 12px; background:none; border:0; text-align:left; cursor:pointer; border-radius:var(--r) }
+  .lane .who:hover { background:var(--raised) }
+  .lane .who .name { font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+  .lane .who .name small { color:var(--muted); font-weight:500 }
+  .state { font-size:12px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; height:20px; padding:0 7px; border-radius:4px; display:inline-flex; align-items:center; flex:none }
+  .state.active { color:var(--done); background:var(--done-bg) } .state.open { color:var(--accent); background:#1a2a44 } .state.ended, .state.gone { color:var(--text-2); background:var(--raised) }
+  .lane .sub { padding:0 12px 10px; color:var(--muted); font-size:12px; display:flex; justify-content:space-between; gap:8px }
+  .lane .sub .holds { color:var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+  .lane .files { list-style:none; margin:0; padding:4px 12px 10px; font-size:12px; color:var(--text-2) }
+  .lane .files li { display:flex; justify-content:space-between; gap:10px; white-space:nowrap; overflow:hidden; line-height:1.7 } .lane .files li span:first-child { overflow:hidden; text-overflow:ellipsis } .lane .files li span:last-child { color:var(--muted); flex:none }
+  .lane .detail { border-top:1px solid var(--line); padding:10px 12px 12px; font-size:13px }
+  .kv { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; margin:0 } .kv dt { color:var(--muted) } .kv dd { margin:0; min-width:0; overflow-wrap:anywhere }
+  .conf { display:flex; gap:9px; align-items:flex-start; padding:8px 10px; margin-bottom:6px; border:1px solid var(--line); border-radius:var(--r); background:var(--surface); font-size:13px }
+  .conf .sev { width:8px; height:8px; border-radius:50%; flex:none; margin-top:7px; background:var(--muted) } .conf.high .sev { background:var(--bad) } .conf.medium .sev { background:var(--work) }
+  .changes { list-style:none; margin:0; padding:6px 0; border:1px solid var(--line); border-radius:var(--r); background:var(--surface); font-size:12px }
+  .changes li { display:flex; justify-content:space-between; gap:10px; padding:3px 12px; white-space:nowrap } .changes li span:first-child { overflow:hidden; text-overflow:ellipsis; color:var(--text-2) } .changes li span:last-child { color:var(--muted); flex:none }
+  .changes li .st { display:inline-block; width:14px; color:var(--muted) }
+
+  /* ---------- task popover ---------- */
+  #pop { position:fixed; z-index:20; width:380px; max-width:calc(100vw - 24px); background:var(--raised); border:1px solid var(--line-strong); border-radius:var(--r-lg); box-shadow:var(--shadow); padding:14px 16px 12px }
+  #pop[hidden] { display:none }
+  #pop .top { display:flex; align-items:flex-start; gap:10px } #pop h3 { font-size:16px; flex:1; line-height:1.35 }
+  #pop .close { background:none; border:0; color:var(--muted); cursor:pointer; padding:2px; display:inline-flex; border-radius:4px } #pop .close:hover { color:var(--text); background:var(--line) }
+  #pop .kv { margin:12px 0 }
+  #pop .evidence { font-size:12px; color:var(--text-2); overflow-wrap:anywhere; background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:8px 10px; margin-top:4px }
+  #pop .problem { color:var(--bad); font-size:13px; margin-top:8px }
+  #pop .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px }
+  #pop details.brief { margin-top:10px; font-size:13px } #pop details.brief summary { cursor:pointer; color:var(--text-2) } #pop details.brief summary:hover { color:var(--text) }
+  #pop details.brief pre { white-space:pre-wrap; font:12px/1.5 "Cascadia Code", "JetBrains Mono", ui-monospace, Consolas, monospace; color:var(--text-2); background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:10px 12px; margin:8px 0 0; max-height:260px; overflow:auto }
+
+  /* ---------- license dialog ---------- */
+  dialog { background:var(--raised); color:var(--text); border:1px solid var(--line-strong); border-radius:var(--r-lg); padding:0; width:min(640px, calc(100vw - 32px)); box-shadow:var(--shadow) }
+  dialog::backdrop { background:rgba(8,10,14,.6) }
+  dialog .dh { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--line) } dialog .dh h2 { font-size:16px }
+  dialog .db { padding:18px 20px 20px; font-size:13px; line-height:1.6; color:var(--text-2) } dialog .db p:first-child { margin-top:0 } dialog .db p { margin:0 0 12px }
+  dialog .db .who { color:var(--text); font-weight:600 }
+  dialog pre { white-space:pre-wrap; font:12px/1.55 "Cascadia Code", "JetBrains Mono", ui-monospace, Consolas, monospace; color:var(--text-2); background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:12px 14px; margin:12px 0 0 }
+
+  @media (max-width: 1100px) { main { grid-template-columns:1fr; height:auto } aside { border-right:0; border-bottom:1px solid var(--line); max-height:none } #map { min-height:60vh } }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="19" cy="18" r="2.2"/><path d="M7.1 11 16.9 6.9M7.1 13l9.8 4.1"/></svg>
+    <h1>AgentViz</h1>
+    <span class="repo" id="repo"></span>
+  </div>
+  <div class="stats">
+    <span class="pill" id="conn"><span class="dot"></span> connecting</span>
+    <span class="pill" id="sum-tasks"></span>
+    <span class="pill" id="sum-agents"></span>
+    <span class="pill" id="sum-conf"></span>
+    <span class="pill" id="sum-evidence"></span>
+    <span class="pill" id="sum-lock" hidden></span>
+  </div>
+  <div class="right"><span id="updated"></span><button class="btn" id="license-btn" type="button">License</button></div>
+</header>
+<main>
+  <aside>
+    <h2>Agents</h2><div id="agents"></div>
+    <h2>Conflicts</h2><div id="conflicts"></div>
+    <h2>Uncommitted changes</h2><div id="changes"></div>
+  </aside>
+  <div class="center">
+    <div id="now"></div>
+    <div id="map"><div id="canvas"><svg id="edges"></svg></div></div>
+  </div>
+</main>
+<div id="pop" hidden role="dialog" aria-label="Task"></div>
+<dialog id="license">
+  <div class="dh"><h2>AgentViz</h2><button class="btn small" type="button" id="license-close">Close</button></div>
+  <div class="db">
+    <p><span class="who">© 2026 Florian Farr</span> · Author and copyright holder · Released under the MIT License.</p>
+    <p>AgentViz shows what coding agents actually do on a repository: a PLAN.md convention for parallel agents, Claude Code hooks that share claims, an evidence check for every tick, and this board.</p>
+    <pre>MIT License
+
+Copyright (c) 2026 Florian Farr
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</pre>
+  </div>
+</dialog>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const ago = (ms, now) => { const d = Math.max(0, now - ms); return d < 60e3 ? `${Math.round(d / 1e3)} s` : d < 3600e3 ? `${Math.round(d / 60e3)} min` : d < 86400e3 ? `${Math.round(d / 3600e3)} h` : `${Math.round(d / 86400e3)} d`; };
+  const PALETTE = ['#6ea8ff', '#f9826c', '#d2a8ff', '#7ee787', '#ffa657', '#79c0ff', '#ff7b72', '#56d4dd'];
+  const colorOf = (() => { const m = new Map(); return a => { if (!m.has(a)) m.set(a, PALETTE[m.size % PALETTE.length]); return m.get(a); }; })();
+  const ICON = {
+    check: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5 6.5 12 13 4.5"/></svg>',
+    dots: '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3.5" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="12.5" cy="8" r="1.4"/></svg>',
+    bang: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v5.5M8 12.2v.1"/></svg>',
+    chevron: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>',
+    warn: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5 14.5 13.5h-13L8 2.5ZM8 6.5v3M8 12v.1"/></svg>',
+    x: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg>',
+  };
+  const STATUS_WORD = { done: 'Completed', active: 'In progress', blocked: 'Blocked', pending: 'Open' };
+
+  // ---------- view state ----------
+  const expanded = new Set();     // component ids whose tasks are unfolded under the card
+  let state = null, positions = {}, focus = null;   // focus = agent label whose work is highlighted; its lane is open
+  const label = x => x.name ? `${x.name} · ${x.agent}` : x.agent;
+  const compsOf = (s, x) => new Set([...x.files.flatMap(f => f.components), ...x.claims.map(k => s.tasks.find(t => t.id === k)?.component).filter(Boolean)]);
+  const toggleFocus = a => { focus = focus === a ? null : a; closePop(); render(state); };
+
+  // ---------- brief for an agent ----------
+  function briefFor(s, t) {
+    const c = s.components.find(x => x.id === t.component);
+    const siblings = s.tasks.filter(x => x.component === t.component && x.id !== t.id && x.status !== 'done').map(x => `#${x.id} (${x.status}${x.claim ? ', held by ' + x.claim.by : ''})`);
+    return [
+      `Take task #${t.id} in PLAN.md of ${s.repo}: "${t.title}".`,
+      c ? `Component #${c.id} "${c.title}" — ${c.tech}. It owns: ${c.files.join(', ')}. Keep your changes to those files; other components are other agents' ground.` : '',
+      t.tech ? `Notes on the task (tech:): ${t.tech}` : '',
+      siblings.length ? `Other open tasks in this component, not yours: ${siblings.join(', ')}.` : '',
+      'Before you start: mark the task [~] in PLAN.md with a "by:" line naming you, and save the file - that is your claim, other agents see it.',
+      'When done: mark it [x] and cite the evidence on its tech: line (the implementing files with line ranges where useful, and the test files). Run `npm run plan:check`; a tick without evidence is not done.',
+      'If you are stuck, mark it [!] with a line saying why. Record any decision that changes the plan under ## decisions before acting on it.',
+    ].filter(Boolean).join('\n');
+  }
+  async function copyBrief(s, t, el) {
+    const text = briefFor(s, t);
+    try { await navigator.clipboard.writeText(text); el.textContent = 'Copied'; } catch { window.prompt('Copy the brief for the agent:', text); return; }
+    setTimeout(() => { el.textContent = 'Copy brief'; }, 1800);
+  }
+
+  // ---------- task popover ----------
+  function closePop() { $('pop').hidden = true; }
+  function openPop(s, t, anchor) {
+    const now = s.at;
+    const c = s.components.find(x => x.id === t.component);
+    const open = t.status === 'pending' || t.status === 'blocked';
+    const pop = $('pop');
+    pop.innerHTML = `<div class="top"><span class="ic ${t.status}">${t.status === 'done' ? ICON.check : t.status === 'active' ? ICON.dots : t.status === 'blocked' ? ICON.bang : ''}</span><h3>${esc(t.title)}</h3><button class="close" type="button" aria-label="Close">${ICON.x}</button></div>
+      <dl class="kv">
+        <dt>Status</dt><dd><span class="badge ${t.status}">${STATUS_WORD[t.status]}</span>${t.from ? ` <span class="badge">${t.from === 'roadmap' ? 'from roadmap' : 'planned by an agent'}</span>` : ''}</dd>
+        <dt>Task</dt><dd><code>#${esc(t.id)}</code>${c ? ` in #${esc(c.id)} · ${esc(c.title)}` : ''}</dd>
+        ${t.claim ? `<dt>Held by</dt><dd>${esc(t.claim.by)} · since ${ago(t.claim.at, now)} ago</dd>` : t.by ? `<dt>Done by</dt><dd>${esc(t.by)}</dd>` : ''}
+        ${t.tech ? `<dt>Evidence</dt><dd><div class="evidence">${esc(t.tech)}</div></dd>` : ''}
+      </dl>
+      ${t.problems.length ? `<div class="problem">Evidence check failed: ${esc(t.problems.join('; '))}</div>` : ''}${t.check ? `<div class="problem">${esc(t.check)}</div>` : ''}
+      ${open ? `<details class="brief"><summary>Brief for an agent (the prompt)</summary><pre>${esc(briefFor(s, t))}</pre></details>` : ''}
+      <div class="actions">${open ? '<button class="btn small" type="button" data-copy>Copy brief</button>' : ''}<button class="btn small" type="button" data-close>Close</button></div>`;
+    pop.hidden = false;
+    const r = anchor.getBoundingClientRect();
+    const w = pop.offsetWidth, h = pop.offsetHeight;
+    let left = r.right + 12, top = r.top - 8;
+    if (left + w > innerWidth - 12) left = Math.max(12, r.left - w - 12);
+    if (top + h > innerHeight - 12) top = Math.max(12, innerHeight - h - 12);
+    pop.style.left = left + 'px'; pop.style.top = top + 'px';
+    pop.querySelector('.close').onclick = closePop;
+    pop.querySelector('[data-close]').onclick = closePop;
+    const cp = pop.querySelector('[data-copy]'); if (cp) cp.onclick = () => copyBrief(s, t, cp);
+    pop.querySelector('.close').focus();
+  }
+  document.addEventListener('click', e => { if (!$('pop').hidden && !$('pop').contains(e.target) && !e.target.closest('.tasks .row')) closePop(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closePop(); });
+
+  // ---------- layout: layers by needs (longest path), columns left to right ----------
+  function layout(components) {
+    const byId = Object.fromEntries(components.map(c => [c.id, c]));
+    const level = {};
+    const depth = (id, seen = new Set()) => {
+      if (level[id] !== undefined) return level[id];
+      if (seen.has(id)) return 0; seen.add(id);
+      const c = byId[id]; if (!c) return 0;
+      const l = c.needs.filter(n => byId[n]).reduce((m, n) => Math.max(m, depth(n, seen) + 1), 0);
+      level[id] = l; return l;
+    };
+    components.forEach(c => depth(c.id));
+    const cols = {};
+    components.forEach(c => (cols[level[c.id]] = cols[level[c.id]] || []).push(c));
+    const W = 300, GX = 64, GY = 28, H = 150, ROW = 42;
+    const pos = {};
+    const full = c => H + (expanded.has(c.id) ? 12 + Math.max(1, c.counts.total) * ROW + 2 : 0);
+    const colH = arr => arr.reduce((a, c) => a + full(c) + GY, -GY);
+    const maxH = Math.max(...Object.values(cols).map(colH));
+    for (const [l, arr] of Object.entries(cols)) {
+      let y = 12 + (maxH - colH(arr)) / 2;
+      for (const c of arr) { pos[c.id] = { x: 12 + Number(l) * (W + GX), y, w: W, h: H, full: full(c) }; y += full(c) + GY; }
+    }
+    return pos;
+  }
+
+  function render(s) {
+    state = s; const now = s.at;
+    $('repo').innerHTML = `<b>${esc(s.repo)}</b> · PLAN.md`; $('repo').title = s.root;
+    const live = s.sessions.filter(x => x.alive);
+    const done = s.tasks.filter(t => t.status === 'done').length, failed = s.tasks.filter(t => t.problems.length).length;
+    $('sum-tasks').textContent = `${done} of ${s.tasks.length} tasks done`;
+    $('sum-agents').textContent = `${live.length} agent${live.length === 1 ? '' : 's'} working`; $('sum-agents').className = 'pill' + (live.length ? ' ok' : '');
+    const high = s.conflicts.filter(c => c.severity === 'high').length;
+    $('sum-conf').textContent = s.conflicts.length ? `${s.conflicts.length} conflict${s.conflicts.length === 1 ? '' : 's'}` : 'No conflicts'; $('sum-conf').className = 'pill' + (high ? ' bad' : s.conflicts.length ? ' warn' : ' ok');
+    $('sum-evidence').textContent = failed ? `${failed} tick${failed === 1 ? '' : 's'} without evidence` : `Evidence verified${s.testsRun ? ', tests run' : ''}`; $('sum-evidence').className = 'pill' + (failed ? ' bad' : ' ok');
+    $('sum-lock').hidden = !s.locks.length; $('sum-lock').textContent = s.locks.map(l => `${l.name} locked by ${l.agent}`).join(', '); $('sum-lock').className = 'pill warn';
+    $('updated').textContent = `Updated ${new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+
+    // who is working right now
+    const active = s.sessions.filter(x => x.state === 'active');
+    const others = s.sessions.filter(x => x.state !== 'active');
+    const whereOf = x => { const f = x.files[0]; const comp = f && f.components[0] ? s.components.find(c => c.id === f.components[0]) : null; return { file: f ? f.file : null, at: f ? f.at : x.lastAt, comp }; };
+    if (focus && !s.sessions.some(x => x.agent === focus)) focus = null;
+    const focused = focus ? compsOf(s, s.sessions.find(x => x.agent === focus)) : null;
+    $('now').className = active.length ? '' : 'idle';
+    $('now').innerHTML = (active.length
+      ? `<span class="big">${active.length === 1 ? '1 agent is working right now' : `${active.length} agents are working right now`}</span>` +
+        active.map(x => { const w = whereOf(x); return `<button type="button" class="n${focus === x.agent ? ' focus' : ''}" data-agent="${esc(x.agent)}" title="Show only this agent's work"><span class="pulse"></span><b style="color:${colorOf(x.agent)}">${esc(label(x))}</b>${w.comp ? `<span class="where">in</span><span>#${esc(w.comp.id)} · ${esc(w.comp.title)}</span>` : ''}${w.file ? `<span class="where">·</span><code title="${esc(w.file)}">${esc(w.file)}</code><span class="where">${ago(w.at, now)} ago</span>` : ''}${x.claims.length ? `<span class="where">· holds</span><span>${x.claims.map(k => '#' + esc(k)).join(', ')}</span>` : ''}</button>`; }).join('')
+      : `<span class="big">No agent is working right now</span>`) +
+      (focus ? `<button type="button" class="clear" id="clear-focus">Showing only ${esc(focus)} — show all</button>` : '') +
+      (others.length ? `<span class="rest">${others.filter(x => x.state === 'open').length ? `${others.filter(x => x.state === 'open').length} open but idle · ` : ''}${others.filter(x => x.state !== 'open').length} ended or gone in the last 24 h</span>` : '');
+    for (const el of $('now').querySelectorAll('[data-agent]')) el.onclick = () => toggleFocus(el.dataset.agent);
+    const clr = $('clear-focus'); if (clr) clr.onclick = () => { focus = null; render(state); };
+
+    // map
+    positions = layout(s.components);
+    const map = $('canvas');
+    for (const el of [...map.querySelectorAll('.card, .tasks')]) el.remove();
+    let maxX = 0, maxY = 0;
+    for (const c of s.components) {
+      const p = positions[c.id]; maxX = Math.max(maxX, p.x + p.w); maxY = Math.max(maxY, p.y + p.full);
+      const t = c.counts;
+      const phase = (t.active || c.agents.length || c.claims.length) ? 'working' : (t.total && t.done === t.total) ? 'done' : 'open';
+      const el = document.createElement('div');
+      el.className = 'card ' + phase + (c.conflict === 'high' ? ' c-high' : c.conflict === 'medium' ? ' c-medium' : '') + (focused && !focused.has(c.id) ? ' dim' : '');
+      el.style.left = p.x + 'px'; el.style.top = p.y + 'px';
+      const pct = n => t.total ? (100 * n / t.total) + '%' : '0%';
+      const touched = c.touchedAt ? `touched ${ago(c.touchedAt, now)} ago` : c.lastCommit ? `${c.lastCommit.hash} · ${ago(c.lastCommit.at, now)} ago` : '';
+      const conflictText = c.conflict ? s.conflicts.filter(x => x.component === c.id || (x.components || []).includes(c.id))[0]?.text || '' : '';
+      el.innerHTML = `<div class="head"><span class="tech" title="${esc(c.tech)}">${esc(c.tech || c.files.join(', '))}</span><span class="status ${phase}">${phase === 'working' ? 'In progress' : phase === 'done' ? 'Done' : 'Open'}</span></div>
+        <h3>${esc(c.title)}</h3>
+        <div class="bar"><i class="d" style="width:${pct(t.done)}"></i><i class="a" style="width:${pct(t.active)}"></i><i class="b" style="width:${pct(t.blocked)}"></i></div>
+        <div class="meta"><span>${t.done} of ${t.total} done${t.active ? ` · ${t.active} in progress` : ''}${t.blocked ? ` · ${t.blocked} blocked` : ''}</span><span>${esc(touched)}</span></div>
+        ${c.agents.length || c.uncommitted ? `<div class="chips">${c.agents.map(a => `<button type="button" class="agent${focus === a ? ' focus' : ''}" data-agent="${esc(a)}" style="background:${colorOf(a)}">${esc(label(s.sessions.find(x => x.agent === a) || { agent: a }))}</button>`).join('')}${c.uncommitted ? `<span class="chip">${c.uncommitted} uncommitted</span>` : ''}</div>` : ''}
+        ${c.evidenceFailed.length ? `<div class="flag">${ICON.warn}<span>Evidence missing for ${c.evidenceFailed.map(x => '#' + esc(x)).join(', ')}</span></div>` : ''}
+        ${conflictText ? `<div class="flag">${ICON.warn}<span>${esc(conflictText)}</span></div>` : ''}
+        <button type="button" class="toggle${expanded.has(c.id) ? ' open' : ''}" data-toggle="${esc(c.id)}"><span>${expanded.has(c.id) ? 'Hide tasks' : `Show ${t.total} task${t.total === 1 ? '' : 's'}`}</span>${ICON.chevron}</button>`;
+      for (const chip of el.querySelectorAll('[data-agent]')) chip.onclick = e => { e.stopPropagation(); toggleFocus(chip.dataset.agent); };
+      el.querySelector('[data-toggle]').onclick = e => { e.stopPropagation(); if (expanded.has(c.id)) expanded.delete(c.id); else expanded.add(c.id); closePop(); render(state); };
+      map.appendChild(el);
+      if (expanded.has(c.id)) {
+        const list = document.createElement('div');
+        list.className = 'tasks' + (focused && !focused.has(c.id) ? ' dim' : '');
+        list.style.left = p.x + 'px'; list.style.top = (p.y + p.h + 12) + 'px';
+        const ts = s.tasks.filter(x => x.component === c.id);
+        let n = 0;
+        list.innerHTML = ts.map(x => { n++; const st = x.status; const badge = st === 'pending' ? (x.from === 'roadmap' ? 'Roadmap' : x.from === 'agent' ? 'Planned' : 'Open') : STATUS_WORD[st];
+          return `<button type="button" class="row ${st}" data-task="${esc(x.id)}"><span class="ic ${st}">${st === 'done' ? ICON.check : st === 'active' ? ICON.dots : st === 'blocked' ? ICON.bang : n}</span><span class="ttl">${esc(x.title)}</span>${x.problems.length ? `<span class="ev" title="${esc(x.problems.join('; '))}">${ICON.warn}</span>` : ''}<span class="badge ${st}">${badge}</span></button>`; }).join('') || '<div class="row"><span class="ttl empty">No tasks yet.</span></div>';
+        for (const b of list.querySelectorAll('[data-task]')) b.onclick = e => { e.stopPropagation(); openPop(s, s.tasks.find(x => x.id === b.dataset.task), b); };
+        map.appendChild(list);
+      }
+    }
+    const svg = $('edges'); svg.setAttribute('width', maxX + 12); svg.setAttribute('height', maxY + 12);
+    const avail = $('map').clientWidth - 40;
+    const k = Math.max(0.55, Math.min(1, avail / (maxX + 12)));
+    map.style.width = (maxX + 12) + 'px'; map.style.height = (maxY + 12) + 'px';
+    map.style.transform = `scale(${k})`; map.style.marginBottom = `${-(maxY + 12) * (1 - k)}px`; map.style.marginRight = `${-(maxX + 12) * (1 - k)}px`;
+    const path = (a, b, dashed) => {
+      const pa = positions[a], pb = positions[b]; if (!pa || !pb) return '';
+      const x1 = pa.x + pa.w, y1 = pa.y + pa.h / 2, x2 = pb.x, y2 = pb.y + pb.h / 2;
+      const left = x2 < x1; const sx = left ? pa.x : x1, ex = left ? pb.x + pb.w : x2; const dx = Math.max(40, Math.abs(ex - sx) / 2) * (left ? -1 : 1);
+      const dim = focused && !(focused.has(a) && focused.has(b));
+      return `<path d="M${sx},${y1} C${sx + dx},${y1} ${ex - dx},${y2} ${ex},${y2}" fill="none" stroke="${dim ? '#242a36' : dashed ? '#3a4356' : focused ? 'var(--work)' : '#6b7486'}" stroke-width="${dashed ? 1 : 1.5}" ${dashed ? 'stroke-dasharray="4 4"' : `marker-end="url(#${dim ? 'arrow-dim' : focused ? 'arrow-focus' : 'arrow'})"`}/>`;
+    };
+    let d = '<defs>' + [['arrow', '#6b7486'], ['arrow-dim', '#242a36'], ['arrow-focus', '#d9a62b']].map(([id, col]) => `<marker id="${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="${col}"/></marker>`).join('') + '</defs>';
+    const seen = new Set();
+    for (const c of s.components) {
+      for (const n of c.needs) d += path(n, c.id, false);
+      for (const l of c.links) { const key = [c.id, l].sort().join('|'); if (!seen.has(key) && !c.needs.includes(l) && !(s.components.find(x => x.id === l)?.needs || []).includes(c.id)) { seen.add(key); d += path(c.id, l, true); } }
+    }
+    svg.innerHTML = d;
+
+    // agents (left): the focused agent's lane is open and shows everything about it
+    const stateText = x => x.state === 'active' ? `editing · ${ago(x.lastAt, now)} ago` : x.state === 'open' ? `open, no edits for ${ago(x.lastAt, now)}` : x.state === 'ended' ? `ended ${ago(x.lastAt, now)} ago` : `gone · last seen ${ago(x.lastAt, now)} ago`;
+    const lane = x => {
+      const open = focus === x.agent;
+      const comps = [...compsOf(s, x)];
+      return `<div class="lane ${x.state}">
+        <button type="button" class="who" data-agent="${esc(x.agent)}" aria-expanded="${open}" title="${open ? 'Show all agents' : 'Show only this agent\'s work'}">${x.state === 'active' ? '<span class="pulse"></span>' : ''}<span class="name">${x.name ? `${esc(x.name)} <small>· ${esc(x.agent)}</small>` : esc(x.agent)}</span><span class="state ${x.state}">${x.state}</span></button>
+        <div class="sub"><span>${esc(stateText(x))}</span>${x.claims.length ? `<span class="holds">holds ${x.claims.map(k => '#' + esc(k)).join(', ')}</span>` : ''}</div>
+        <ul class="files">${x.files.slice(0, open ? 100 : 6).map(f => `<li title="${esc(f.file)}"><span class="mono">${esc(f.file)}</span><span>${f.components.map(c => '#' + esc(c)).join(' ') || '–'} · ${ago(f.at, now)}</span></li>`).join('')}${!open && x.files.length > 6 ? `<li><span class="empty">… ${x.files.length - 6} more</span></li>` : ''}${!x.files.length ? '<li><span class="empty">no file changed in the last 24 h</span></li>' : ''}</ul>
+        ${open ? `<div class="detail"><dl class="kv"><dt>Session</dt><dd><code>${esc(x.id)}</code></dd>${x.transcript ? `<dt>Transcript</dt><dd><code title="${esc(x.transcript.path)}">${esc(x.transcript.path.split(/[\\/]/).pop())}</code> · ${x.transcript.exists ? `written ${ago(x.transcript.at, now)} ago` : 'missing'}</dd>` : ''}<dt>Holds</dt><dd>${x.claims.length ? x.claims.map(k => { const t = s.tasks.find(t => t.id === k); return `#${esc(k)}${t ? ` — ${esc(t.title)}` : ''}`; }).join('<br>') : '<span class="empty">no task</span>'}</dd><dt>Components</dt><dd>${comps.length ? comps.map(c => { const cc = s.components.find(y => y.id === c); return `#${esc(c)}${cc ? ` · ${esc(cc.title)}` : ''}`; }).join('<br>') : '<span class="empty">none the plan owns</span>'}</dd></dl></div>` : ''}
+      </div>`;
+    };
+    $('agents').innerHTML = (active.length ? `<div class="empty" style="margin-bottom:8px">Working now · ${active.length}</div>` + active.map(lane).join('') : '<div class="empty" style="margin-bottom:10px">Working now · none</div>') +
+      (others.length ? `<div class="empty" style="margin:14px 0 8px">Earlier today · ${others.length}</div>` + others.map(lane).join('') : '');
+    for (const el of $('agents').querySelectorAll('[data-agent]')) el.onclick = () => toggleFocus(el.dataset.agent);
+
+    // conflicts
+    $('conflicts').innerHTML = s.conflicts.length ? s.conflicts.map(c => `<div class="conf ${c.severity}"><span class="sev"></span><span>${esc(c.text)}</span></div>`).join('') : '<div class="empty">None. Agents are in separate files and components.</div>';
+
+    // working tree
+    $('changes').innerHTML = s.changes.length ? `<ul class="changes">${s.changes.slice(0, 24).map(c => `<li title="${esc(c.file)}"><span><span class="st mono">${esc(c.status)}</span><span class="mono">${esc(c.file)}</span></span><span>${c.components.map(x => '#' + esc(x)).join(' ')}</span></li>`).join('')}${s.changes.length > 24 ? `<li><span class="empty">… ${s.changes.length - 24} more</span></li>` : ''}</ul>` : '<div class="empty">Working tree clean.</div>';
+  }
+
+  // ---------- license ----------
+  $('license-btn').onclick = () => $('license').showModal();
+  $('license-close').onclick = () => $('license').close();
+  $('license').addEventListener('click', e => { if (e.target === $('license')) $('license').close(); });
+
+  // ---------- live connection ----------
+  function connect() {
+    const es = new EventSource('/events');
+    es.addEventListener('state', e => { $('conn').className = 'pill ok'; $('conn').innerHTML = '<span class="dot"></span> Live'; render(JSON.parse(e.data)); });
+    es.onerror = () => { $('conn').className = 'pill bad'; $('conn').innerHTML = '<span class="dot"></span> Reconnecting'; };
+  }
+  connect();
+  setInterval(() => { if (state) render({ ...state, at: Date.now() }); }, 30000);
+  let resizeTimer; addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => state && render(state), 150); });
+})();
+</script>
+</body>
+</html>

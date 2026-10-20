@@ -252,3 +252,10 @@ test('init moves hooks an earlier install left at another copy of agentviz', () 
   assert.match(text, /echo unrelated/, 'hooks of other tools stay');
   assert.equal(JSON.parse(text).hooks.PreToolUse.length, 1, 'no second agentviz entry');
 });
+
+test('[I] marks a task in progress like [~], and a sync keeps the character', () => {
+  const text = '## A {#a}\n- [I] One {#one}\n- [i] Two {#two}\n- [~] Three {#three}\n- [ ] Four {#four}\n';
+  assert.deepEqual(lib.parsePlan(text).tasks.map(t => t.status), ['active', 'active', 'active', 'pending']);
+  assert.equal(lib.applyStatuses(text, { one: { status: 'active' } }), text);
+  assert.match(lib.applyStatuses(text, { one: { status: 'done' } }), /- \[x\] One \{#one\}/);
+});

@@ -21,7 +21,7 @@ const { spawnSync } = require('child_process');
 const LEASE_MS = Number(process.env.AGENTVIZ_LEASE_MINUTES || 30) * 60e3;
 const SESSION_FILES_MAX_AGE_MS = 7 * 24 * 3600e3;
 const STATUS_CHAR = { pending: ' ', done: 'x', active: '~', blocked: '!' };
-const CHAR_STATUS = { ' ': 'pending', x: 'done', X: 'done', '~': 'active', '!': 'blocked' };
+const CHAR_STATUS = { ' ': 'pending', x: 'done', X: 'done', '~': 'active', I: 'active', i: 'active', '!': 'blocked' };
 
 // ---------- repository and state directory ----------
 
@@ -62,7 +62,7 @@ const related = (a, b) => a === b || rootOf(a) === b || rootOf(b) === a;
 // ---------- PLAN.md ----------
 
 const NODE_RE = /^##\s+(.+?)\s*\{#([a-z0-9][a-z0-9-]*)\}\s*$/i;
-const TASK_RE = /^(\s*[-*]\s+\[)( |x|X|~|!)(\]\s+(.+?)\s*\{#([a-z0-9][a-z0-9-]*)\}\s*)$/;
+const TASK_RE = /^(\s*[-*]\s+\[)( |x|X|~|I|i|!)(\]\s+(.+?)\s*\{#([a-z0-9][a-z0-9-]*)\}\s*)$/;
 const FILES_RE = /^files:\s*\[([^\]]*)\]\s*$/i;
 const SUB_RE = /^\s+(tech|by|from|horizon|check):\s*(.*)$/i;
 

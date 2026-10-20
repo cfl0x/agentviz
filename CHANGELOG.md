@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `[I]` (or `[i]`) marks a task in progress like `[~]`, for keyboards where `~` is hard to type. A sync leaves the character as the owner wrote it.
+
 ## 1.0.2: Subagent detection fixed
 
 **Subagents are agents of their own**

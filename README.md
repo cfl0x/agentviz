@@ -89,7 +89,7 @@ links: [engine]
 
 - `## Title {#id}` is a component: a part one agent can own for a session. Titles are verb-led and concrete; the engineer phrasing goes on `tech:`. Keep 5–9 components; split only when one agent could not own it any more.
 - `files:` globs declare which paths the component owns — this is how edits are attributed. `needs:` are sequencing edges, `links:` coupling.
-- Tasks: `[ ]` open, `[~]` in progress (with `by:`), `[x]` done (with evidence on `tech:`), `[!]` stuck. `from: agent` or `from: roadmap` names where an open task came from; `from: roadmap` keeps it out of the current scope (the board shows it as *roadmap*, every other open task as *planned*).
+- Tasks: `[ ]` open, `[~]` in progress (with `by:`; `[I]` works the same and is easier to type on keyboards without a `~` key), `[x]` done (with evidence on `tech:`), `[!]` stuck. `from: agent` or `from: roadmap` names where an open task came from; `from: roadmap` keeps it out of the current scope (the board shows it as *roadmap*, every other open task as *planned*).
 - `{#id}`s never change. Plan-affecting decisions go under `## decisions` before the work.
 
 The full text that `init` installs for agents is in [cli.js](cli.js).

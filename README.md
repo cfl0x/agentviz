@@ -34,11 +34,11 @@ Then ask your agent to backfill `PLAN.md` from the code: every `[x]` must cite i
 Run `setup` again in the repository, with the version you want, and commit `.agentviz/`:
 
 ```bash
-npx -y github:cfl0x/agentviz#v1.0.2 setup      # a release: any tag from https://github.com/cfl0x/agentviz/releases
+npx -y github:cfl0x/agentviz#v1.0.3 setup      # a release: any tag from https://github.com/cfl0x/agentviz/releases
 npx -y github:cfl0x/agentviz setup             # the newest state of the main branch
 ```
 
-It replaces the copy in `.agentviz/`, adds hooks a newer version needs, and moves hooks an earlier install left at another place (an old `agentviz/` folder, the npx cache, a global install) to the copy. With a global install: `npm install -g github:cfl0x/agentviz#v1.0.2`, then `agentviz init` in each repository. `agentviz --version` (or `node .agentviz/cli.js --version`) says which version runs.
+It replaces the copy in `.agentviz/`, adds hooks a newer version needs, and moves hooks an earlier install left at another place (an old `agentviz/` folder, the npx cache, a global install) to the copy. With a global install: `npm install -g github:cfl0x/agentviz#v1.0.3`, then `agentviz init` in each repository. `agentviz --version` (or `node .agentviz/cli.js --version`) says which version runs.
 
 The package is not on the npm registry (the name `agentviz` there belongs to a different project), so install it from GitHub. A global install works as well: `npm install -g github:cfl0x/agentviz`, then `agentviz init` in a repository.
 

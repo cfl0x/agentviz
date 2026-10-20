@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.3: [I] marks a task in progress
 
 - `[I]` (or `[i]`) marks a task in progress like `[~]`, for keyboards where `~` is hard to type. A sync leaves the character as the owner wrote it.
 

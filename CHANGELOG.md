@@ -1,6 +1,18 @@
 # Changelog
 
-## 1.0.3: [I] marks a task in progress
+## 1.0.4: Claim before you edit, and advice on multi-agent work
+
+**An agent must claim a task before it edits**
+- The hook now refuses (exit 2) to write a file of a component while the agent holds no `[~]` task of that component. The message names the open tasks of the component and says what to do: mark the task `[~]`, add the `by:` line, save `PLAN.md`, retry. Before, the only signal was a note after the edit, which agents could ignore, so work ended up unclaimed and invisible on the board.
+- A claim of a session covers its subagents (parent and subagents are one family); a subagent's own claim covers itself. Another component's claim does not help. `PLAN.md` and files no component owns are never refused. Finishing a task (`[x]`, `[!]`) ends the permission: the next edit needs a new claim.
+- `AGENTVIZ_REQUIRE_CLAIM=warn` brings back the reminder after the edit, `off` says nothing. The session start message and the convention text now tell agents to claim before they edit.
+
+**`agentviz advise`: does this plan qualify for multi-agent work?**
+- Prints a verdict, the number of agents and the lanes, from the same lane count as the board: **multi-agent** (two or more free lanes and at least three planned tasks, one agent per lane, at most six), **single-agent** (fewer lanes or too little work, with what holds the other components back) or **not-ready** (no plan, no components or only the skeleton: backfill first). `--json` for scripts.
+
+## 1.0.3
+
+[I] marks a task in progress
 
 - `[I]` (or `[i]`) marks a task in progress like `[~]`, for keyboards where `~` is hard to type. A sync leaves the character as the owner wrote it.
 

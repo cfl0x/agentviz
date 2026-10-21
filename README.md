@@ -6,10 +6,11 @@ agentviz is for repositories where several AI coding agents (Claude Code session
 
 - **One plan.** `PLAN.md` holds 5–9 components of the system, the files each owns, the edges between them, and tasks whose status is backed by evidence. Agents maintain it; you read it.
 - **Claims that mean something.** An agent's `[~]` is a claim every other session sees. It lasts while the session is active, ends with the session or after 30 minutes without activity, and the task then falls back. A second agent marking the same task is reverted and told who holds it.
+- **Claim before you edit.** Writing a file of a component is refused until the agent (or its session) holds a `[~]` task of that component; the message names the open tasks and what to do. `PLAN.md` and files no component owns are never refused.
 - **No mixed edits.** Writing a file another live session changed within the lease is refused. A different file of a claimed component only warns. Deploy commands take one lock.
 - **Ticks you can audit.** Every `[x]` names its evidence (files, line ranges, tests) on its `tech:` line; `agentviz check` verifies them and turns a tick whose evidence is gone into `[!]`. It only ever takes ticks away.
 - **A board that shows facts.** The whole plan at a glance (done, in progress, blocked, planned, roadmap), components along their dependency edges, every task on a status board, the agents live in each component, uncommitted changes and the last commit per component, the state of every tick, and the conflicts derived from what agents really did: two agents in one file, two agents in one component, work without a claim, work outside every component, claims that fell back. Sessions are **active**, **open** (still up, not editing), **ended** or **gone** (their Claude Code transcript is missing or silent for a day).
-- **How many agents to run.** The board counts the lanes that can take an agent now without stepping on another one, names the next task in each and hands you its brief.
+- **How many agents to run.** The board counts the lanes that can take an agent now without stepping on another one, names the next task in each and hands you its brief. `agentviz advise` turns that into a verdict: does this plan qualify for multi-agent work, and with how many agents?
 
 No dependencies. Node 20 or newer, git, and Claude Code for the hooks (the check and the board work with any agent that maintains PLAN.md).
 
@@ -51,9 +52,24 @@ agentviz board            # http://localhost:5340 ; --open opens the browser, --
 agentviz check            # evidence behind every [x], live claims, released claims, unplanned changes, locks
 agentviz check --write    # mark ticks whose evidence fails as [!] with a check: line (and restore them when it is back)
 agentviz check --tests    # also run every test file the ticked tasks cite
+agentviz advise           # does this plan qualify for multi-agent work? verdict, number of agents, lanes (--json for scripts)
 ```
 
 `check` exits 1 when evidence fails, so it can run after a merge in CI.
+
+### Does the plan qualify for multi-agent work?
+
+`agentviz advise` answers from the same lane count as the board's *Parallel agents* panel:
+
+| Verdict | Rule | Advice |
+| --- | --- | --- |
+| **multi-agent** | two or more free lanes and at least three planned tasks | one agent per free lane, at most six |
+| **single-agent** | fewer than two free lanes, or fewer than three planned tasks | one agent; the output says what holds the other components back (waits, coupled, busy) |
+| **not-ready** | no `PLAN.md`, no components, or only the skeleton | backfill the plan from the code first |
+
+### Claim before you edit
+
+The `PreToolUse` hook refuses to write a file of a component while the agent holds no `[~]` task of that component: mark the task `[~]`, add `by:`, save `PLAN.md`, then edit. A claim of a session covers its subagents. Finishing a task (`[x]`, `[!]`) ends the permission. `AGENTVIZ_REQUIRE_CLAIM=warn` only reminds after the edit, `off` disables the rule.
 
 ## The board
 
@@ -98,7 +114,7 @@ The full text that `init` installs for agents is in [cli.js](cli.js).
 
 Every hook event (file written, PLAN.md changed, session start/stop) is appended to a file of its own session under the repository's git common directory (`.git/agentviz/sessions/<session>.jsonl`), so sessions in different worktrees see each other and none can overwrite another. Statuses are reduced from those events; a claim is a lease. `check` and the board read the same events, git and PLAN.md. Nothing is committed and nothing leaves the machine.
 
-Environment: `AGENTVIZ_HOOK=off` disables the hooks for a session; `AGENTVIZ_LEASE_MINUTES` (30) sets the lease; `AGENTVIZ_ALLOW_SHARED_FILES=1` turns the same-file refusal into a warning; `AGENTVIZ_LOCK_COMMANDS` is a regular expression for the commands that take the deploy lock; `AGENTVIZ_PORT` sets the board's port; `AGENTVIZ_EDITOR` the editor its file links open.
+Environment: `AGENTVIZ_HOOK=off` disables the hooks for a session; `AGENTVIZ_REQUIRE_CLAIM` (`refuse`, `warn`, `off`) sets whether an edit without a claim is refused; `AGENTVIZ_LEASE_MINUTES` (30) sets the lease; `AGENTVIZ_ALLOW_SHARED_FILES=1` turns the same-file refusal into a warning; `AGENTVIZ_LOCK_COMMANDS` is a regular expression for the commands that take the deploy lock; `AGENTVIZ_PORT` sets the board's port; `AGENTVIZ_EDITOR` the editor its file links open.
 
 ## Development
 

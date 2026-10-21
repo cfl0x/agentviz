@@ -10,6 +10,7 @@
  *                      Claude Code hooks into .claude/settings.json and the npm scripts into package.json (when present)
  *   agentviz board    the live view (agentviz/board.js)         [--port n] [--open] [--tests]
  *   agentviz check    the evidence and claims check (check.js)      [--write] [--tests] [--json]
+ *   agentviz advise   does this plan qualify for multi-agent work? verdict, number of agents, lanes (advise.js)   [--json]
  *   agentviz hook     the Claude Code hook entry point (hook.js); registered by init, not called by hand
  *
  * Everything depends only on PLAN.md and git, nothing on this repository, so the folder can be copied, installed
@@ -39,6 +40,7 @@ Maintain PLAN.md as the living plan. It is read by the project OWNER, not by you
 const PARALLEL = `
 ## Working in parallel (this repository)
 Several agents may work here at once, also from separate \`git worktree\`s. The hooks in \`.claude/settings.json\` keep them apart; keep following the convention above, the hooks turn it into shared state.
+- CLAIM BEFORE YOU EDIT: the hook refuses to write a file of a component until you hold a \`[~]\` task of that component. Mark the task \`[~]\`, add \`by:\`, save PLAN.md, then edit. If no task fits, add one under that component first
 - your \`[~]\` in PLAN.md is a claim other sessions see. It lasts while your session is active and ends with it (or after 30 minutes without activity), and the task then returns to its previous status — so mark \`[~]\` before you start and \`[x]\`/\`[!]\` when you finish, not later
 - a task another agent holds is reverted to its claim if you mark it; the session-start message lists who holds what. Pick something else or ask the owner
 - writing a file another live session changed in the last 30 minutes is refused: two agents' changes must not mix in one file. A different file of a claimed component only warns
@@ -146,9 +148,10 @@ switch (cmd) {
   case 'init': init(); break;
   case 'board': require('./board').start(); break;
   case 'check': require('./check').main(); break;
+  case 'advise': require('./advise').main(); break;
   case 'hook': require('./hook'); break;
   case '--version': case '-v': console.log(require('./package.json').version); break;
   default:
-    console.log('usage: agentviz <setup|init|board|check|hook> [options]\n  setup  one step: copy agentviz into .agentviz/, install it and open the board   --no-board  --port n\n  init   install the convention, hooks and npm scripts into this repository\n  board  live view            --port n  --open  --tests\n  check  evidence and claims  --write  --tests  --json');
+    console.log('usage: agentviz <setup|init|board|check|advise|hook> [options]\n  setup   one step: copy agentviz into .agentviz/, install it and open the board   --no-board  --port n\n  init    install the convention, hooks and npm scripts into this repository\n  board   live view            --port n  --open  --tests\n  check   evidence and claims  --write  --tests  --json\n  advise  does this plan qualify for multi-agent work, and with how many agents?  --json');
     process.exit(cmd ? 1 : 0);
 }

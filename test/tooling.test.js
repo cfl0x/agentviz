@@ -40,8 +40,8 @@ function scratchRepo() {
   return dir;
 }
 
-function hook(dir, event) {
-  const r = spawnSync(process.execPath, [HOOK], { input: JSON.stringify({ cwd: dir, ...event }), encoding: 'utf8', env: { ...process.env, AGENTVIZ_HOOK: '' } });
+function hook(dir, event, env = {}) {
+  const r = spawnSync(process.execPath, [HOOK], { input: JSON.stringify({ cwd: dir, ...event }), encoding: 'utf8', env: { ...process.env, AGENTVIZ_HOOK: '', AGENTVIZ_REQUIRE_CLAIM: '', ...env } });
   let out = null;
   try { out = r.stdout ? JSON.parse(r.stdout) : null; } catch { /* plain */ }
   return { code: r.status, stderr: r.stderr, context: out?.hookSpecificOutput?.additionalContext || '' };
@@ -53,11 +53,11 @@ function editPlan(dir, session, from, to) {
   fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace(from, to));
   return hook(dir, { session_id: session, hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: p } });
 }
-const writeFile = (dir, session, rel) => {
-  const pre = hook(dir, { session_id: session, hook_event_name: 'PreToolUse', tool_name: 'Write', tool_input: { file_path: path.join(dir, rel) } });
+const writeFile = (dir, session, rel, env = {}, extra = {}) => {
+  const pre = hook(dir, { session_id: session, hook_event_name: 'PreToolUse', tool_name: 'Write', tool_input: { file_path: path.join(dir, rel) }, ...extra }, env);
   if (pre.code !== 0) return { pre };
   fs.writeFileSync(path.join(dir, rel), `// ${session}\n`);
-  return { pre, post: hook(dir, { session_id: session, hook_event_name: 'PostToolUse', tool_name: 'Write', tool_input: { file_path: path.join(dir, rel) } }) };
+  return { pre, post: hook(dir, { session_id: session, hook_event_name: 'PostToolUse', tool_name: 'Write', tool_input: { file_path: path.join(dir, rel) }, ...extra }, env) };
 };
 const planText = dir => fs.readFileSync(path.join(dir, 'PLAN.md'), 'utf8');
 
@@ -79,10 +79,56 @@ test('the same file is refused to a second live session; a different file of the
   const clash = writeFile(dir, 'bbbb2222', 'src/ingest/webhook.js');
   assert.equal(clash.pre.code, 2);
   assert.match(clash.pre.stderr, /changed .* ago by claude#aaaa, which is still working/);
-  const near = writeFile(dir, 'bbbb2222', 'src/ingest/router.js');
+  // the claim requirement is its own rule (next test); relaxed to a reminder here, a different file only warns
+  const near = writeFile(dir, 'bbbb2222', 'src/ingest/router.js', { AGENTVIZ_REQUIRE_CLAIM: 'warn' });
   assert.equal(near.pre.code, 0);
   assert.match(near.post.context, /claude#aaaa holds #ingest-webhook/);
   assert.match(near.post.context, /without a task of that component marked \[~\] by you/);
+});
+
+test('a file of a component is only written by an agent that holds a [~] task of that component', () => {
+  const dir = scratchRepo();
+  hook(dir, { session_id: 'aaaa1111', hook_event_name: 'SessionStart' });
+  // nothing claimed yet: refused, with the way out
+  const none = writeFile(dir, 'aaaa1111', 'src/ingest/webhook.js');
+  assert.equal(none.pre.code, 2);
+  assert.match(none.pre.stderr, /belongs to component #ingest, and you hold no task of it/);
+  assert.match(none.pre.stderr, /mark the task you are working on \[~\], add an indented "by: claude#aaaa" line/);
+  assert.match(none.pre.stderr, /#ingest-webhook Accept webhooks/);
+  assert.doesNotMatch(none.pre.stderr, /Keep a history/, 'only open tasks are offered');
+  // a claim in another component does not help
+  editPlan(dir, 'aaaa1111', '- [ ] Run steps', '- [~] Run steps');
+  assert.equal(writeFile(dir, 'aaaa1111', 'src/ingest/webhook.js').pre.code, 2);
+  assert.equal(writeFile(dir, 'aaaa1111', 'src/engine/core.js').pre.code, 0, 'the claimed component is open');
+  // PLAN.md itself and files no component owns are never refused
+  assert.equal(hook(dir, { session_id: 'cccc3333', hook_event_name: 'PreToolUse', tool_name: 'Edit', tool_input: { file_path: path.join(dir, 'PLAN.md') } }).code, 0);
+  assert.equal(writeFile(dir, 'cccc3333', 'README.md').pre.code, 0);
+  // claim, then edit
+  editPlan(dir, 'aaaa1111', '- [ ] Accept webhooks', '- [~] Accept webhooks');
+  assert.equal(writeFile(dir, 'aaaa1111', 'src/ingest/webhook.js').pre.code, 0);
+  // finishing the task ends the permission: the next edit needs a new claim
+  editPlan(dir, 'aaaa1111', '- [~] Accept webhooks', '- [x] Accept webhooks');
+  assert.equal(writeFile(dir, 'aaaa1111', 'src/ingest/router.js').pre.code, 2);
+});
+
+test('a subagent may edit what its parent session claimed; a sibling session may not', () => {
+  const dir = scratchRepo();
+  editPlan(dir, 'aaaa1111', '- [ ] Accept webhooks', '- [~] Accept webhooks');
+  assert.equal(writeFile(dir, 'aaaa1111', 'src/ingest/webhook.js', {}, { agent_id: 'a623' }).pre.code, 0, 'the parent\'s claim covers its subagent');
+  assert.equal(writeFile(dir, 'bbbb2222', 'src/ingest/other.js').pre.code, 2, 'another session holds no claim there');
+});
+
+test('AGENTVIZ_REQUIRE_CLAIM relaxes the claim rule: warn only reminds afterwards, off says nothing', () => {
+  const dir = scratchRepo();
+  const warn = writeFile(dir, 'aaaa1111', 'src/ingest/webhook.js', { AGENTVIZ_REQUIRE_CLAIM: 'warn' });
+  assert.equal(warn.pre.code, 0);
+  assert.match(warn.post.context, /without a task of that component marked \[~\] by you/);
+  assert.equal(writeFile(dir, 'aaaa1111', 'src/ingest/more.js', { AGENTVIZ_REQUIRE_CLAIM: 'off' }).pre.code, 0);
+});
+
+test('the session start tells every agent to claim before editing', () => {
+  const dir = scratchRepo();
+  assert.match(hook(dir, { session_id: 'aaaa1111', hook_event_name: 'SessionStart' }).context, /BEFORE you edit any file/);
 });
 
 test('a claim ends with its session or after the lease, and the task falls back to its previous status', () => {
@@ -177,6 +223,8 @@ const subPlan = (dir, session, agentId, from, to) => {
 test('each subagent is an agent of its own: siblings are guarded against each other, parent and child are not', () => {
   const dir = scratchRepo();
   hook(dir, { session_id: 'aaaa1111', agent_id: 'agent-a623f0', agent_type: 'general-purpose', hook_event_name: 'SubagentStart' });
+  assert.equal(subWrite(dir, 'aaaa1111', 'agent-a623f0', 'src/ingest/webhook.js').pre.code, 2, 'claim first');
+  subPlan(dir, 'aaaa1111', 'agent-a623f0', '- [ ] Accept webhooks', '- [~] Accept webhooks');
   assert.equal(subWrite(dir, 'aaaa1111', 'agent-a623f0', 'src/ingest/webhook.js').pre.code, 0);
   const sibling = subWrite(dir, 'aaaa1111', 'agent-b7c1d2', 'src/ingest/webhook.js');
   assert.equal(sibling.pre.code, 2, 'a sibling subagent may not write the same file');
@@ -222,6 +270,7 @@ test('a session working in a linked worktree without a subagent id is keyed by t
   assert.equal(lib.locate(wt).worktree, path.basename(wt));
   assert.equal(lib.locate(dir).worktree, null);
   fs.mkdirSync(path.join(wt, 'src', 'engine'), { recursive: true });
+  subPlan(wt, 'aaaa1111', null, '- [ ] Run steps', '- [~] Run steps');
   const r = subWrite(wt, 'aaaa1111', null, 'src/engine/core.js');
   assert.equal(r.pre.code, 0);
   const view = lib.reduce(lib.readEvents(lib.locate(dir).stateDir));

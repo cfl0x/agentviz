@@ -10,7 +10,9 @@
  * file guard. A session that edits a linked worktree without an agent_id is keyed by the worktree instead.
  *
  *   PreToolUse   Edit/Write/MultiEdit/NotebookEdit: refuses to write a file another live session wrote within the
- *                lease (exit 2, the agent reads why). PLAN.md is never refused.
+ *                lease (exit 2, the agent reads why). Refuses to write a file of a component while the agent (or its
+ *                session) holds no [~] task of that component: claim first, then edit. PLAN.md is never refused.
+ *                AGENTVIZ_REQUIRE_CLAIM=warn (only a note after the edit) or off relaxes the second rule.
  *                Bash `cf deploy` / `cf push` / `cf undeploy`: takes the deploy lock; refuses while another session
  *                holds it.
  *   PostToolUse  records the file as activity of its components; a PLAN.md edit records every changed task status as
@@ -31,6 +33,8 @@ const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 /** Commands that must not run twice at once in one target; AGENTVIZ_LOCK_COMMANDS (a regular expression) replaces the default. */
 const DEPLOY_RE = new RegExp(process.env.AGENTVIZ_LOCK_COMMANDS || '\\b(cf\\s+(deploy|push|undeploy|bg-deploy|blue-green-deploy)|helm\\s+(install|upgrade|uninstall)|kubectl\\s+(apply|delete|rollout)|terraform\\s+(apply|destroy)|pulumi\\s+(up|destroy))\\b');
 const DEPLOY_LOCK = 'deploy';
+/** refuse (default): an edit to a component's file needs a [~] task of that component; warn: only a note afterwards; off: nothing. */
+const REQUIRE_CLAIM = (process.env.AGENTVIZ_REQUIRE_CLAIM || 'refuse').trim().toLowerCase();
 
 const ago = ms => (ms < 90e3 ? `${Math.round(ms / 1000)} s` : `${Math.round(ms / 60e3)} min`);
 
@@ -111,7 +115,7 @@ function main() {
     const lock = lib.readLock(stateDir, DEPLOY_LOCK);
     if (lock && lock.session !== session && lock.expiresAt > now) others.push(`- ${lock.agent} is deploying (since ${ago(now - lock.at)})`);
     if (lib.syncPlan(root, stateDir, now)) others.push('- PLAN.md statuses were brought in line with the other sessions; read it before editing.');
-    tell('SessionStart', others.length ? `You are ${agent}. Other agents are working on this repository:\n${others.join('\n')}\nPick tasks nobody holds; mark yours [~] in PLAN.md before you start.` : `You are ${agent}. No other agent holds a task in PLAN.md right now.`);
+    tell('SessionStart', others.length ? `You are ${agent}. Other agents are working on this repository:\n${others.join('\n')}\nPick tasks nobody holds; mark yours [~] in PLAN.md (with a by: line) and save it BEFORE you edit any file: edits to a component's files are refused until you hold a task of that component.` : `You are ${agent}. No other agent holds a task in PLAN.md right now. Mark the task you work on [~] in PLAN.md (with a by: line) and save it BEFORE you edit any file: edits to a component's files are refused until you hold a task of that component.`);
     return;
   }
 
@@ -149,6 +153,15 @@ function main() {
       const at = s.files.get(rel);
       if (at && now - at < lib.LEASE_MS && process.env.AGENTVIZ_ALLOW_SHARED_FILES !== '1') {
         refuse(`${rel} was changed ${ago(now - at)} ago by ${s.agent}, which is still working. Writing it now would mix two agents' changes in one file.\nCoordinate first: pick another task, or wait until ${s.agent} has finished (its claims are listed in PLAN.md).`);
+      }
+    }
+    // claim first, then edit: a file of a component is only written by an agent that holds a task of that component
+    if (REQUIRE_CLAIM === 'refuse') {
+      const plan = planOf(root);
+      const comps = lib.componentsOf(plan, rel);
+      if (comps.length && !view.claims.some(c => lib.related(c.session, session) && comps.includes(c.component))) {
+        const open = plan.tasks.filter(t => comps.includes(t.component) && t.status === 'pending').slice(0, 5).map(t => `  - #${t.id} ${t.title}`);
+        refuse(`${rel} belongs to component #${comps.join(', #')}, and you hold no task of it. Claim before you edit: in PLAN.md mark the task you are working on [~], add an indented "by: ${agent}" line under it, save PLAN.md, then retry this edit.\n${open.length ? `Open tasks there:\n${open.join('\n')}\n` : 'No open task there: add one under that component first.\n'}(AGENTVIZ_REQUIRE_CLAIM=warn only reminds after the edit.)`);
       }
     }
     return;

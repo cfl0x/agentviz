@@ -1,6 +1,6 @@
 {
   "name": "agentviz",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "See what your coding agents actually do. A PLAN.md convention for parallel agents, Claude Code hooks that share claims and keep agents out of each other's files, an evidence check for every tick, and a live board of the plan and the agents on it. Depends on git only.",
   "keywords": [
     "claude-code",
@@ -28,6 +28,7 @@
     "board.js",
     "board.html",
     "check.js",
+    "advise.js",
     "hook.js",
     "lib.js",
     "README.md",
@@ -35,7 +36,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "node --test test/tooling.test.js test/board.test.js"
+    "test": "node --test test/tooling.test.js test/board.test.js test/advise.test.js"
   },
   "engines": {
     "node": ">=20"

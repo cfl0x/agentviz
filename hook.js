@@ -93,7 +93,12 @@ function main() {
   }
   const { root, stateDir } = loc;
   const sid = ev.session_id || 'manual';
-  const sub = ev.agent_id ? String(ev.agent_id) : loc.worktree ? `wt-${loc.worktree}` : null;
+  let sub = ev.agent_id ? String(ev.agent_id) : null;
+  // a session that started in this worktree (claude -w) is at home there; only one that came from elsewhere is keyed by it
+  if (!sub && loc.worktree && ev.hook_event_name !== 'SessionStart') {
+    const home = lib.readEvents(loc.stateDir).some(e => e.session === sid && e.type === 'start' && e.worktree === loc.worktree);
+    if (!home) sub = `wt-${loc.worktree}`;
+  }
   const session = sub ? lib.subKey(sid, sub) : sid;
   const agent = sub ? lib.subLabel(sid, sub) : lib.agentLabel(sid);
   // the transcript path lets the board tell whether a session still exists after its hooks went quiet; a subagent's
@@ -180,8 +185,11 @@ function main() {
       for (const t of plan.tasks) {
         const shared = view.statuses[t.id];
         const before = shared ? shared.status : null;
-        if (before === t.status || (!shared && t.status !== 'active')) continue;
-        if (t.status === 'active' && shared?.status === 'active' && !lib.related(shared.session, session)) {
+        // an agent takes over the owner's claim by writing its own name on the by: line of the [~] task
+        const takeover = t.status === 'active' && shared?.status === 'active' && String(shared.session).startsWith('human:') && !!t.by && t.by !== shared.by;
+        if ((before === t.status && !takeover) || (!shared && t.status !== 'active')) continue;
+        // the owner's claim (made on the board) passes to the agent that takes the task
+        if (t.status === 'active' && shared?.status === 'active' && !lib.related(shared.session, session) && !String(shared.session).startsWith('human:')) {
           notes.push(`#${t.id} is already claimed by ${shared.by}; your [~] was not recorded. Pick another task or ask ${shared.by}'s owner.`);
           continue;
         }

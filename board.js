@@ -26,6 +26,9 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const lib = require('./lib');
 const check = require('./check');
+const activity = require('./activity');
+const actions = require('./actions');
+const crypto = require('crypto');
 
 const args = process.argv.slice(2);
 const flag = n => args.includes(n);
@@ -198,15 +201,32 @@ function build(loc, { runTests = false, now = Date.now(), gitCache = {}, tickCac
   //   open    no recent edits, but the Claude Code transcript is still being written: the session is up, thinking or waiting
   //   ended   the session said goodbye (SessionEnd)
   //   gone    no goodbye, and the transcript is missing or silent for a day: the session no longer exists
-  const sessions = Object.values(view.sessions).map(s => {
+  const sessions = Object.values(view.sessions).filter(s => !String(s.id).startsWith('human:')).map(s => {
     let transcript = null;
     if (s.transcript) { try { const st = fs.statSync(s.transcript); transcript = { path: s.transcript, exists: true, at: st.mtimeMs }; } catch { transcript = { path: s.transcript, exists: false, at: null }; } }
     const transcriptLive = transcript?.exists && now - transcript.at < lib.LEASE_MS;
     const state = s.alive ? 'active' : s.ended ? 'ended' : transcriptLive ? 'open' : (transcript && (!transcript.exists || now - transcript.at > ACTIVITY_WINDOW_MS)) ? 'gone' : (now - s.lastAt > ACTIVITY_WINDOW_MS ? 'gone' : 'open');
+    // what it does right now, from the tail of its transcript (a subagent writes its own next to its parent's)
+    const isSub = s.subagent && !String(s.subagent).startsWith('wt-');
+    const tfile = isSub ? activity.subagentTranscript(view.sessions[s.parent]?.transcript, s.parent, s.subagent) : s.transcript;
+    // a subagent's meta file says what it was asked (and whether it finished, even without a SubagentStop); the #ids in
+    // its brief say which tasks it works on: named tasks, or the claimed tasks of a named component
+    const info = isSub ? activity.subagentInfo(tfile) : null;
+    const finished = !!info?.finished && state !== 'gone';
+    const st = finished ? 'ended' : state;
+    const works = [];
+    for (const id of info?.refs || []) {
+      if (tasks.some(t => t.id === id)) works.push(id);
+      else if (plan.components.some(c => c.id === id)) works.push(...tasks.filter(t => t.component === id && t.status === 'active').map(t => t.id));
+    }
+    const act = st === 'ended' || st === 'gone' ? null : activity.activityOf(tfile, now);
     return {
       // a subagent (or a worktree agent) names its parent session; its name is its type (Explore, general-purpose, …)
-      id: s.id, agent: s.agent, parent: s.parent, subagent: s.subagent, subagentType: s.subagentType, worktree: s.worktree,
-      name: s.parent ? s.subagentType || (s.worktree ? `worktree ${s.worktree}` : null) : sessionName(s.transcript, s.id), alive: s.alive, ended: s.ended, state, lastAt: s.lastAt, transcript,
+      id: s.id, agent: s.agent, parent: s.parent, subagent: s.subagent, subagentType: s.subagentType || info?.type || null, worktree: s.worktree,
+      description: info?.description || null, works: [...new Set(works)],
+      name: s.parent ? s.subagentType || info?.type || (s.worktree ? `worktree ${s.worktree}` : null) : act?.title || sessionName(s.transcript, s.id), alive: finished ? false : s.alive, ended: s.ended || finished, state: st, lastAt: s.lastAt, transcript,
+      activity: act ? { kind: act.kind, text: act.text, at: act.at, tool: act.tool || null } : null,
+      branch: act?.branch || null, cwd: act?.cwd || null, version: act?.cwd ? activity.projectVersion(act.cwd, null) : null,
       files: [...s.files].filter(([, at]) => now - at < ACTIVITY_WINDOW_MS).sort((a, b) => b[1] - a[1]).map(([file, at]) => ({ file, at, components: compOf(file) })),
       components: [...s.components], planned: [...s.planned],
       claims: view.claims.filter(c => c.session === s.id).map(c => c.task),
@@ -219,7 +239,7 @@ function build(loc, { runTests = false, now = Date.now(), gitCache = {}, tickCac
 
   // conflicts
   const conflicts = [];
-  const live = sessions.filter(s => s.alive);
+  const live = sessions.filter(s => s.alive);   // human claims are not sessions: build() leaves them out of `sessions`
   // a parent session and its subagents are one family: they share files and claims without a conflict; siblings do not
   const apart = who => who.some((a, i) => who.some((b, j) => j > i && !lib.related(a.id, b.id)));
   const plannedBy = s => new Set(sessions.filter(x => lib.related(x.id, s.id)).flatMap(x => x.planned));
@@ -239,6 +259,7 @@ function build(loc, { runTests = false, now = Date.now(), gitCache = {}, tickCac
     }
   }
   for (const s of live) {
+    if (s.human) continue;
     const outside = s.files.filter(f => now - f.at < lib.LEASE_MS && !f.components.length && f.file !== 'PLAN.md');
     if (outside.length) conflicts.push({ kind: 'outside', severity: 'low', agents: [s.agent], files: outside.map(f => f.file), text: `${s.agent} changes ${outside.length === 1 ? outside[0].file : `${outside.length} files`} that no component of the plan owns` });
   }
@@ -263,6 +284,11 @@ function build(loc, { runTests = false, now = Date.now(), gitCache = {}, tickCac
     };
   });
 
+  const knownSessions = new Set(Object.keys(view.sessions));
+  const launches = actions.pendingLaunches(stateDir, knownSessions, now);
+  if (!('repoInfo' in tickCache) || now - tickCache.repoInfo.at > 15e3) {
+    tickCache.repoInfo = { at: now, branch: git(root, ['rev-parse', '--abbrev-ref', 'HEAD']).trim() || null, version: activity.projectVersion(root, root), owner: actions.ownerName(root) };
+  }
   const summary = { total: tasks.length };
   for (const k of ['done', 'active', 'blocked', 'planned', 'roadmap']) summary[k] = tasks.filter(t => t.stage === k).length;
   if (!('web' in tickCache)) tickCache.web = webOf(root);
@@ -270,6 +296,8 @@ function build(loc, { runTests = false, now = Date.now(), gitCache = {}, tickCac
 
   return {
     at: now, repo: path.basename(root), root, planPath: path.join(root, 'PLAN.md'), leaseMs: lib.LEASE_MS, testsRun: runTests,
+    branch: tickCache.repoInfo.branch, version: tickCache.repoInfo.version, owner: tickCache.repoInfo.owner, launches,
+    actions: process.env.AGENTVIZ_ACTIONS !== 'off',
     web: tickCache.web, editor: /^(none|off|)$/i.test(editor) ? null : editor.replace(/[^a-z0-9+.-]/gi, ''),
     summary, capacity: capacity(components, tasks, live),
     components, tasks, sessions, changes, conflicts, locks: lib.locksOf(stateDir).filter(l => l.expiresAt > now),
@@ -286,6 +314,9 @@ function planNeeds(text, id, key) {
 
 function serve(loc, { port = PORT, runTests = RUN_TESTS, open = flag('--open'), log = false } = {}) {
   const page = path.join(__dirname, 'board.html');
+  // actions change PLAN.md and start processes: only the page this server served may call them (a token in the page,
+  // a localhost Host header against DNS rebinding, a same-origin Origin against other sites)
+  const token = crypto.randomBytes(18).toString('hex');
   const clients = new Set();
   const gitCache = {};
   const tickCache = {};
@@ -320,8 +351,9 @@ function serve(loc, { port = PORT, runTests = RUN_TESTS, open = flag('--open'), 
     const url = new URL(req.url, 'http://x');
     if (url.pathname === '/' || url.pathname === '/index.html') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-      return res.end(fs.readFileSync(page, 'utf8'));
+      return res.end(fs.readFileSync(page, 'utf8').replace('<meta name="agentviz-token" content="">', `<meta name="agentviz-token" content="${token}">`));
     }
+    if (url.pathname.startsWith('/api/') && req.method === 'POST') return act(req, res, url.pathname.slice(5));
     if (url.pathname === '/api/state') {
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
       return res.end(lastJson);
@@ -335,6 +367,31 @@ function serve(loc, { port = PORT, runTests = RUN_TESTS, open = flag('--open'), 
     }
     res.writeHead(404); res.end('not found');
   });
+  function act(req, res, name) {
+    const send = (code, body) => { res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(body)); };
+    const host = String(req.headers.host || '').replace(/:\d+$/, '');
+    const origin = req.headers.origin;
+    if (process.env.AGENTVIZ_ACTIONS === 'off') return send(403, { ok: false, error: 'actions are switched off (AGENTVIZ_ACTIONS=off)' });
+    if (!['localhost', '127.0.0.1'].includes(host) || (origin && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) || req.headers['x-agentviz-token'] !== token) return send(403, { ok: false, error: 'not allowed' });
+    let body = '';
+    req.on('data', d => { body += d; if (body.length > 256e3) req.destroy(); });
+    req.on('end', () => {
+      let input = {};
+      try { input = JSON.parse(body || '{}'); } catch { return send(400, { ok: false, error: 'bad request' }); }
+      const id = String(input.task || '');
+      if (!/^[a-z0-9][a-z0-9-]*$/i.test(id)) return send(400, { ok: false, error: 'no task' });
+      let out;
+      try {
+        if (name === 'claim') out = actions.claim(loc, id);
+        else if (name === 'release') out = actions.release(loc, id);
+        else if (name === 'start') out = actions.start(loc, id, { brief: String(input.brief || '').slice(0, 20000), worktree: !!input.worktree, launch: input.launch !== false });
+        else return send(404, { ok: false, error: 'unknown action' });
+      } catch (e) { return send(500, { ok: false, error: e.message }); }
+      refresh('action');
+      send(out.ok ? 200 : 409, out);
+    });
+  }
+
   // stop everything that would keep the process alive: watchers, timers, open event streams
   const shutdown = () => { clearTimeout(timer); clearInterval(poll); clearInterval(ping); for (const w of watchers) w.close(); for (const res of clients) res.end(); clients.clear(); };
   server.on('close', shutdown);

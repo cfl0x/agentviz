@@ -308,3 +308,54 @@ test('[I] marks a task in progress like [~], and a sync keeps the character', ()
   assert.equal(lib.applyStatuses(text, { one: { status: 'active' } }), text);
   assert.match(lib.applyStatuses(text, { one: { status: 'done' } }), /- \[x\] One \{#one\}/);
 });
+
+test("an agent takes over a task the owner marked in progress on the board", () => {
+  const dir = scratchRepo();
+  spawnSync('git', ['config', 'user.name', 'Jane Doe'], { cwd: dir });
+  const actions = require('../actions');
+  const loc = lib.locate(dir);
+  assert.equal(actions.claim(loc, 'ingest-webhook').ok, true);
+  assert.match(planText(dir), /  by: Jane Doe/);
+  editPlan(dir, 'aaaa1111', '  by: Jane Doe', '  by: claude#aaaa');
+  const view = lib.reduce(lib.readEvents(loc.stateDir));
+  assert.deepEqual(view.claims.map(c => [c.task, c.by]), [['ingest-webhook', 'claude#aaaa']]);
+  assert.match(planText(dir), /  by: claude#aaaa/);
+});
+
+test('update names the release it would install and how, without installing with --dry-run', () => {
+  const dir = scratchRepo();
+  const r = spawnSync(process.execPath, [path.join(__dirname, '..', 'cli.js'), 'update', '9.9.9', '--dry-run'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /asked for v9\.9\.9/);
+  assert.match(r.stdout, /> npm install -g github:cfl0x\/agentviz#v9\.9\.9/, 'outside a vendored copy it reinstalls globally');
+  assert.match(r.stdout, /> agentviz init/);
+  const vend = spawnSync(process.execPath, [path.join(__dirname, '..', 'cli.js'), 'setup', '--no-board'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(vend.status, 0, vend.stderr);
+  const u = spawnSync(process.execPath, [path.join(dir, '.agentviz', 'cli.js'), 'update', '9.9.9', '--dry-run'], { cwd: dir, encoding: 'utf8' });
+  assert.match(u.stdout, /> npx -y github:cfl0x\/agentviz#v9\.9\.9 setup --no-board/, 'a vendored copy runs that release\'s setup');
+});
+
+test('uninstall takes out what setup put in, keeps PLAN.md and the hooks of other tools', () => {
+  const dir = scratchRepo();
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'x', scripts: { build: 'tsc' } }));
+  fs.writeFileSync(path.join(dir, 'CLAUDE.md'), '# Project\n\nOur own rules.\n');
+  fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude', 'settings.json'), JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo other' }] }] } }));
+  const cli = path.join(__dirname, '..', 'cli.js');
+  assert.equal(spawnSync(process.execPath, [cli, 'setup', '--no-board'], { cwd: dir, encoding: 'utf8' }).status, 0);
+  hook(dir, { session_id: 'aaaa1111', hook_event_name: 'SessionStart' });
+  const { stateDir } = lib.locate(dir);
+  assert.ok(fs.existsSync(stateDir));
+  const dry = spawnSync(process.execPath, [path.join(dir, '.agentviz', 'cli.js'), 'uninstall', '--dry-run'], { cwd: dir, encoding: 'utf8' });
+  assert.match(dry.stdout, /dry run: nothing changed/);
+  assert.ok(fs.existsSync(path.join(dir, '.agentviz')), 'a dry run changes nothing');
+  const r = spawnSync(process.execPath, [path.join(dir, '.agentviz', 'cli.js'), 'uninstall'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!fs.existsSync(path.join(dir, '.agentviz')));
+  assert.ok(!fs.existsSync(stateDir));
+  assert.ok(!fs.existsSync(path.join(dir, 'AGENTS.md')), 'AGENTS.md held only the convention');
+  assert.equal(fs.readFileSync(path.join(dir, 'CLAUDE.md'), 'utf8'), '# Project\n\nOur own rules.\n');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).scripts, { build: 'tsc' });
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, '.claude', 'settings.json'), 'utf8')), { hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo other' }] }] } });
+  assert.ok(fs.existsSync(path.join(dir, 'PLAN.md')), 'PLAN.md stays');
+});

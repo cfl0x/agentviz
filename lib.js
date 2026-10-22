@@ -183,7 +183,8 @@ function reduce(events, now = Date.now()) {
     if (e.type === 'touch' && e.file) { s.files.set(e.file, e.at); for (const c of e.components || []) s.components.add(c); }
     if (e.type === 'status' && e.task) { last[e.task] = e; if (e.component) s.planned.add(e.component); }
   }
-  for (const s of Object.values(sessions)) s.alive = !s.ended && now - s.lastAt < LEASE_MS;
+  // the owner's claims (session human:<name>, made on the board) hold until the owner or an agent releases them
+  for (const s of Object.values(sessions)) s.alive = !s.ended && (now - s.lastAt < LEASE_MS || String(s.id).startsWith('human:'));
   // a session waiting on its subagents is still working, and its claims hold
   for (const s of Object.values(sessions)) if (s.alive && s.parent && sessions[s.parent] && !sessions[s.parent].ended) sessions[s.parent].alive = true;
   const statuses = {};

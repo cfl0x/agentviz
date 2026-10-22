@@ -9,6 +9,7 @@ agentviz is for repositories where several AI coding agents (Claude Code session
 - **Claim before you edit.** Writing a file of a component is refused until the agent (or its session) holds a `[~]` task of that component; the message names the open tasks and what to do. `PLAN.md` and files no component owns are never refused.
 - **No mixed edits.** Writing a file another live session changed within the lease is refused. A different file of a claimed component only warns. Deploy commands take one lock.
 - **Ticks you can audit.** Every `[x]` names its evidence (files, line ranges, tests) on its `tech:` line; `agentviz check` verifies them and turns a tick whose evidence is gone into `[!]`. It only ever takes ticks away.
+- **A board that shows what happens.** Which agent does what right now (thinking, editing, running a command, waiting for you), on which task, branch and release; start an agent on a task or mark it in progress from the board.
 - **A board that shows facts.** The whole plan at a glance (done, in progress, blocked, planned, roadmap), components along their dependency edges, every task on a status board, the agents live in each component, uncommitted changes and the last commit per component, the state of every tick, and the conflicts derived from what agents really did: two agents in one file, two agents in one component, work without a claim, work outside every component, claims that fell back. Sessions are **active**, **open** (still up, not editing), **ended** or **gone** (their Claude Code transcript is missing or silent for a day).
 - **How many agents to run.** The board counts the lanes that can take an agent now without stepping on another one, names the next task in each and hands you its brief. `agentviz advise` turns that into a verdict: does this plan qualify for multi-agent work, and with how many agents?
 
@@ -32,7 +33,13 @@ Then ask your agent to backfill `PLAN.md` from the code: every `[x]` must cite i
 
 ### Update
 
-Run `setup` again in the repository, with the version you want, and commit `.agentviz/`:
+In the repository:
+
+```bash
+node .agentviz/cli.js update          # or `agentviz update` with a global install; --check only looks
+```
+
+It asks GitHub for the newest release (or takes the one you name: `update 1.1.0`), replaces the copy in `.agentviz/` (or reinstalls the global one and runs `init` here), and says so. Commit `.agentviz/` afterwards and restart a running board. The same by hand: run `setup` again with the version you want:
 
 ```bash
 npx -y github:cfl0x/agentviz#v1.0.3 setup      # a release: any tag from https://github.com/cfl0x/agentviz/releases
@@ -40,6 +47,14 @@ npx -y github:cfl0x/agentviz setup             # the newest state of the main br
 ```
 
 It replaces the copy in `.agentviz/`, adds hooks a newer version needs, and moves hooks an earlier install left at another place (an old `agentviz/` folder, the npx cache, a global install) to the copy. With a global install: `npm install -g github:cfl0x/agentviz#v1.0.3`, then `agentviz init` in each repository. `agentviz --version` (or `node .agentviz/cli.js --version`) says which version runs.
+
+### Uninstall
+
+```bash
+node .agentviz/cli.js uninstall       # or `agentviz uninstall`; --dry-run lists what it would remove
+```
+
+It removes the agentviz hooks from `.claude/settings.json` (other hooks stay), the two sections `init` added to `CLAUDE.md` and `AGENTS.md`, the `plan:*` scripts, the copy in `.agentviz/` and the shared state under `.git/agentviz/`. `PLAN.md` stays: it is your plan. A global install goes with `npm uninstall -g agentviz`.
 
 The package is not on the npm registry (the name `agentviz` there belongs to a different project), so install it from GitHub. A global install works as well: `npm install -g github:cfl0x/agentviz`, then `agentviz init` in a repository.
 
@@ -73,14 +88,19 @@ The `PreToolUse` hook refuses to write a file of a component while the agent hol
 
 ## The board
 
-- **Status at a glance.** One number (the share of tasks done), one bar across all tasks and a count per stage: done, in progress, blocked, planned and roadmap. *Current scope* leaves the roadmap out. Each stage filters the map and the status board.
-- **Map and status board.** The map shows the components along their `needs:` (arrows) and `links:` (dashed) edges. A card shows only its title, state, progress and the agents in it; a click opens the component in a side panel: its tasks by stage, what it builds on, what uses it, what it is coupled to, the files it owns and its last change. Zoom with `+` / `-` (or Ctrl and the wheel), `0` or *Reset view* shows the whole plan, the minimap and dragging the canvas move the view. The status board (`b`, back to the map with `m`) shows every task in a column per stage, grouped by component.
-- **Parallel agents.** Components own disjoint files, so each takes one agent. A component is a free lane when it has planned work, nobody is in it, nothing there is in conflict and every component it needs has started. A component that shares an edge with a busy or already suggested one is held back, because coupled components change the same surface. The panel names the next task per lane and copies its brief; when nothing is planned, it shows what pulling roadmap work in would allow.
-- **From a task to the work.** A task opens a popover with its stage, the component and what it builds on, the agent holding it (one click shows only that agent's work), the files that agent changed there, the session with a ready `claude --resume` command, the commit that ticked it (linked on GitHub, GitLab or Bitbucket), its evidence as links into the editor and its line in `PLAN.md`. Open tasks carry a brief for an agent. `#task=<id>` links straight to a task.
-- **From an agent to its tasks.** An agent's lane lists the tasks it holds and finished, its components and every file it changed; a file outside every component is marked *outside the plan*.
-- **Subagents.** A subagent that a session starts (the Agent tool, parallel waves in worktrees) is an agent of its own, `claude#166b › a623`, nested under its session: its own claims, its own file guard, its own start and end (`SubagentStart` / `SubagentStop`). A session and its subagents never block each other; two sibling subagents do. A session working in a linked worktree without a subagent id is keyed by the worktree (`claude#166b › wt-<folder>`).
+The board answers three questions, top to bottom: which repository and release is this, what does each agent do right now, and where does the plan stand.
 
-`AGENTVIZ_EDITOR` sets the editor the links open (`vscode`, the default; `cursor`, `vscode-insiders`, … or `none`).
+- **Top bar.** The repository, the branch of the main checkout and the version in `package.json`. Conflicts between agents, ticks without evidence and a lost connection show as alerts below it.
+- **Agents.** One group per Claude Code session, one card per agent that works: the session itself and each of its subagents. A card says what the agent does right now, read from the tail of its transcript: *Thinking*, *Editing* a file, *Running* a command, *Reading* or *Searching*, *Delegating* to subagents, or *Waits for you* (its turn is over, it asks a question, or a tool call waits for your approval). Below that, the tasks it works on: the claims it holds, or for a subagent the tasks its brief names. The group shows the agent's branch and version, how many subagents work and finished, and copies the `claude --resume` command. Ended sessions fold into one line.
+- **Plan.** The share of tasks done, one bar across all tasks and a count per stage (ready, in progress, blocked, done, roadmap) that filters the view. The **board** shows the tasks in a column per stage; the **map** (`m`, back with `b`) shows the components along their `needs:` and `links:` edges, with zoom (`+` `-` `0`, Ctrl and the wheel), a minimap and dragging, and opens a component's tasks and details in a side panel.
+- **Act on a task.** A ready task offers **Start agent** and **Mark in progress** where the pointer or the keyboard is.
+  - *Start agent* opens a new terminal window running `claude -n "<task>" --session-id <id> "<read the brief>"` in the repository, optionally in its own git worktree (`-w`). The brief (the task, its component and files, what it builds on, the PLAN.md rules) is written to `.git/agentviz/briefs/`. The agent appears as *Starting* at once and takes its place when its session begins. *Copy the command instead* gives you the command to run yourself.
+  - *Mark in progress* writes `[~]` and `by: <your git name>` into PLAN.md. Your claim does not expire; an agent that takes the task writes its own name on the `by:` line and takes the claim over. *Release* opens the task again.
+  - The **Start an agent** button lists the ready tasks, recommended ones first: tasks in free components that no busy component is coupled to.
+- **From a task to the work.** A task opens a popover with its stage, the component and what it builds on, who holds it and what that agent does, the files it changed there, the commit that ticked it (linked on GitHub, GitLab or Bitbucket), its evidence as links into the editor and its line in `PLAN.md`. `#task=<id>`, `#comp=<id>` and `#agent=<label>` link straight to a task, a component or an agent's work.
+- **Subagents.** A subagent a session starts (the Agent tool, parallel lanes in worktrees) is an agent of its own, `claude#166b › a623`: its own claims, its own file guard, its own start and end (`SubagentStart` / `SubagentStop`, or the `finished` flag Claude Code writes next to its transcript). A session and its subagents never block each other; two sibling subagents do. A session working in a linked worktree it did not start in is keyed by the worktree (`claude#166b › wt-<folder>`).
+
+The actions only answer the page the board served: a token in the page, a localhost `Host` header and a same-origin request. `AGENTVIZ_ACTIONS=off` turns them off. `AGENTVIZ_EDITOR` sets the editor the links open (`vscode`, the default; `cursor`, `vscode-insiders`, … or `none`).
 
 ## The plan convention
 

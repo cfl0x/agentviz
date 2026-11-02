@@ -302,6 +302,51 @@ test('init moves hooks an earlier install left at another copy of agentviz', () 
   assert.equal(JSON.parse(text).hooks.PreToolUse.length, 1, 'no second agentviz entry');
 });
 
+test("init registers its hooks next to another tool's hook that is also called hook.js", () => {
+  const dir = scratchRepo();
+  fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
+  const other = 'node "$CLAUDE_PROJECT_DIR/scripts/cf-route-hook.js"';
+  fs.writeFileSync(path.join(dir, '.claude', 'settings.json'), JSON.stringify({ hooks: { PostToolUse: [{ matcher: 'Bash|PowerShell', hooks: [{ type: 'command', command: other }] }] } }));
+  const r = spawnSync(process.execPath, [path.join(__dirname, '..', 'cli.js'), 'init'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  const post = JSON.parse(fs.readFileSync(path.join(dir, '.claude', 'settings.json'), 'utf8')).hooks.PostToolUse;
+  const commands = post.flatMap(g => g.hooks.map(h => h.command));
+  assert.ok(commands.includes(other), "the other tool's hook stays");
+  assert.ok(commands.some(c => /agentviz/i.test(c) && /hook\.js/.test(c)), 'agentviz registers its own PostToolUse hook');
+  // a second init changes nothing and says so
+  const again = spawnSync(process.execPath, [path.join(__dirname, '..', 'cli.js'), 'init'], { cwd: dir, encoding: 'utf8' });
+  assert.match(again.stdout, /nothing to do: already initialised/);
+});
+
+test('init adds the plan:* scripts in place: the rest of package.json keeps its layout and line endings', () => {
+  for (const eol of ['\n', '\r\n']) {
+    const dir = scratchRepo();
+    const original = ['{', '    "name": "demo",', '    "scripts": {', '        "test": "node --test"', '    },', '    "cds": { "requires": { "db": { "kind": "sqlite" } } }', '}', ''].join(eol);
+    fs.writeFileSync(path.join(dir, 'package.json'), original);
+    const r = spawnSync(process.execPath, [path.join(__dirname, '..', 'cli.js'), 'init'], { cwd: dir, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    const text = fs.readFileSync(path.join(dir, 'package.json'), 'utf8');
+    assert.deepEqual(Object.keys(JSON.parse(text).scripts), ['test', 'plan:board', 'plan:check', 'plan:check:tests']);
+    assert.ok(text.includes('"cds": { "requires": { "db": { "kind": "sqlite" } } }'), 'one-line objects stay one line');
+    assert.ok(text.includes('        "test": "node --test",'), 'the indent of the scripts is kept');
+    assert.equal(text.split(eol).length, original.split(eol).length + 3, 'exactly three lines were added');
+    if (eol === '\r\n') assert.ok(!/[^\r]\n/.test(text), 'no bare LF in a CRLF file');
+  }
+});
+
+test('the claim refusal says when agentviz is not registered for PostToolUse, so the claim could never be recorded', () => {
+  const dir = scratchRepo();
+  const env = { HOME: dir, USERPROFILE: dir };
+  hook(dir, { session_id: 'aaaa1111', hook_event_name: 'SessionStart' }, env);
+  const without = writeFile(dir, 'aaaa1111', 'src/ingest/webhook.js', env);
+  assert.equal(without.pre.code, 2);
+  assert.match(without.pre.stderr, /not registered for PostToolUse/);
+  spawnSync(process.execPath, [path.join(__dirname, '..', 'cli.js'), 'init'], { cwd: dir, encoding: 'utf8' });
+  const withHook = writeFile(dir, 'aaaa1111', 'src/ingest/webhook.js', env);
+  assert.equal(withHook.pre.code, 2, 'still refused: nothing is claimed');
+  assert.doesNotMatch(withHook.pre.stderr, /not registered for PostToolUse/);
+});
+
 test('[I] marks a task in progress like [~], and a sync keeps the character', () => {
   const text = '## A {#a}\n- [I] One {#one}\n- [i] Two {#two}\n- [~] Three {#three}\n- [ ] Four {#four}\n';
   assert.deepEqual(lib.parsePlan(text).tasks.map(t => t.status), ['active', 'active', 'active', 'pending']);

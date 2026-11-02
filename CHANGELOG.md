@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.1: init registers its hooks next to the hooks of other tools
+
+**Fixed**
+- `init` and `setup` skipped the `PostToolUse` hook whenever another tool already had a hook command containing `hook.js` there (for example `scripts/cf-route-hook.js`). A claim in PLAN.md was then never recorded, and the claim guard refused every edit with no way out. Only a command that names agentviz and `hook.js` counts now.
+- The claim refusal says so when agentviz is not registered for `PostToolUse` in `.claude/settings.json` (project, local or user settings), and points to `agentviz init`.
+- `init` adds the `plan:*` scripts to `package.json` in place: three added lines instead of a reformatted file; one-line objects, indent and CRLF line endings stay. The JSON is only rewritten when the `scripts` block is not a plain multi-line object. `.claude/settings.json` keeps its line ending too, and an `init` that has nothing to change no longer rewrites it.
+- `setup` no longer tells you to commit `.agentviz/` when the repository gitignores it; it says that every clone runs `agentviz setup` once.
+
 ## 1.1.0: See what every agent does, and start agents from the board
 
 **What is going on, at a glance**

@@ -53,6 +53,21 @@ function refuse(text) {
   process.exit(2);
 }
 
+/**
+ * Whether Claude Code is told to call this hook after tools (PostToolUse). Without it a [~] in PLAN.md is never recorded as
+ * a claim, so the claim guard would refuse every edit with no way out: the refusal then says what is missing.
+ */
+function postToolHookMissing(root) {
+  const files = [path.join(root, '.claude', 'settings.json'), path.join(root, '.claude', 'settings.local.json'), path.join(require('os').homedir(), '.claude', 'settings.json')];
+  for (const f of files) {
+    try {
+      const groups = JSON.parse(fs.readFileSync(f, 'utf8'))?.hooks?.PostToolUse || [];
+      if (groups.some(g => (g.hooks || []).some(x => /agentviz/i.test(x.command || '') && /hook\.js/.test(x.command || '')))) return false;
+    } catch { /* no such file */ }
+  }
+  return true;
+}
+
 function planOf(root) {
   try { return lib.parsePlan(fs.readFileSync(path.join(root, 'PLAN.md'), 'utf8')); } catch { return { components: [], tasks: [] }; }
 }
@@ -166,7 +181,7 @@ function main() {
       const comps = lib.componentsOf(plan, rel);
       if (comps.length && !view.claims.some(c => lib.related(c.session, session) && comps.includes(c.component))) {
         const open = plan.tasks.filter(t => comps.includes(t.component) && t.status === 'pending').slice(0, 5).map(t => `  - #${t.id} ${t.title}`);
-        refuse(`${rel} belongs to component #${comps.join(', #')}, and you hold no task of it. Claim before you edit: in PLAN.md mark the task you are working on [~], add an indented "by: ${agent}" line under it, save PLAN.md, then retry this edit.\n${open.length ? `Open tasks there:\n${open.join('\n')}\n` : 'No open task there: add one under that component first.\n'}(AGENTVIZ_REQUIRE_CLAIM=warn only reminds after the edit.)`);
+        refuse(`${rel} belongs to component #${comps.join(', #')}, and you hold no task of it. Claim before you edit: in PLAN.md mark the task you are working on [~], add an indented "by: ${agent}" line under it, save PLAN.md, then retry this edit.\n${open.length ? `Open tasks there:\n${open.join('\n')}\n` : 'No open task there: add one under that component first.\n'}${postToolHookMissing(root) ? 'If you did mark a task [~] and still land here: agentviz is not registered for PostToolUse in .claude/settings.json, so the claim is never recorded. Run `agentviz init` (or add the PostToolUse hook for Edit|Write|MultiEdit|NotebookEdit|Bash next to the PreToolUse one).\n' : ''}(AGENTVIZ_REQUIRE_CLAIM=warn only reminds after the edit.)`);
       }
     }
     return;

@@ -98,7 +98,7 @@ function uninstall() {
   try {
     const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
     let n = 0;
-    const ours = x => /agentviz/i.test(x.command || '') && /hook\.js/.test(x.command || '');
+    const ours = isOurHook;
     for (const [ev, groups] of Object.entries(settings.hooks || {})) {
       const kept = (groups || []).map(g => { const hs = (g.hooks || []).filter(x => !(ours(x) && ++n)); return { ...g, hooks: hs }; }).filter(g => g.hooks.length);
       if (kept.length) settings.hooks[ev] = kept; else delete settings.hooks[ev];
@@ -174,6 +174,45 @@ async function update() {
   if (!dry) console.log(vendored ? `\n.agentviz/ is now ${tag}. Commit it, so the team gets it too; restart a running board.` : `\nagentviz is now ${tag}; restart a running board.`);
 }
 
+/** An agentviz hook entry in settings.json: its command names agentviz and hook.js (another tool's `cf-route-hook.js` is not one). */
+const isOurHook = x => /agentviz/i.test(x.command || '') && /hook\.js/.test(x.command || '');
+
+/** JSON text as the file had it: indent 2, and the line ending `before` used (LF when there was no file). */
+function jsonLike(obj, before) {
+  const eol = /\r\n/.test(before || '') ? '\r\n' : '\n';
+  return JSON.stringify(obj, null, 2).replace(/\n/g, eol) + eol;
+}
+
+/**
+ * Adds entries to the "scripts" object of package.json text without reformatting the rest of the file: a one-line change
+ * in the user's diff instead of the whole file. Null when the block is not a plain multi-line object (the caller then
+ * falls back to rewriting the JSON).
+ */
+function addScriptsText(text, add) {
+  const m = /"scripts"\s*:\s*\{/.exec(text);
+  if (!m) return null;
+  const start = m.index + m[0].length;
+  let i = start, depth = 1, inStr = false;
+  for (; i < text.length && depth; i++) {
+    const c = text[i];
+    if (inStr) { if (c === '\\') i++; else if (c === '"') inStr = false; }
+    else if (c === '"') inStr = true;
+    else if (c === '{') depth++;
+    else if (c === '}') depth--;
+  }
+  if (depth) return null;
+  const close = i - 1;
+  const body = text.slice(start, close);
+  const indent = /\r?\n([ \t]+)"/.exec(body)?.[1];
+  if (!indent) return null;
+  const eol = text.includes('\r\n') ? '\r\n' : '\n';
+  const closingIndent = /([ \t]*)$/.exec(body)[1];
+  const entries = Object.entries(add).map(([k, v]) => `${indent}${JSON.stringify(k)}: ${JSON.stringify(v)}`).join(',' + eol);
+  const out = text.slice(0, start) + body.replace(/\s+$/, '') + ',' + eol + entries + eol + closingIndent + text.slice(close);
+  try { const s = JSON.parse(out).scripts; if (Object.keys(add).every(k => s && s[k] === add[k])) return out; } catch { /* fall through */ }
+  return null;
+}
+
 function setup() {
   const lib = require('./lib');
   const { spawnSync } = require('child_process');
@@ -185,7 +224,9 @@ function setup() {
   if (path.resolve(dest).toLowerCase() !== here.toLowerCase()) {
     fs.mkdirSync(dest, { recursive: true });
     for (const f of [...new Set([...pkg.files, 'package.json'])]) fs.copyFileSync(path.join(here, f), path.join(dest, f));
-    console.log(`.agentviz/: agentviz ${pkg.version} copied into the repository (commit it, so every clone has the hooks)`);
+    // the hooks run .agentviz/hook.js: a clone has them only when the folder is committed, otherwise it runs setup once
+    const ignored = spawnSync('git', ['check-ignore', '-q', dest], { cwd: loc.root }).status === 0;
+    console.log(`.agentviz/: agentviz ${pkg.version} copied into the repository (${ignored ? 'it is gitignored here: every clone runs `agentviz setup` once for the hooks to work' : 'commit it, so every clone has the hooks'})`);
   }
   const cli = path.join(dest, 'cli.js');
   const r = spawnSync(process.execPath, [cli, 'init'], { cwd: process.cwd(), stdio: 'inherit' });
@@ -213,11 +254,13 @@ function init() {
   const plan = path.join(root, 'PLAN.md');
   if (!fs.existsSync(plan)) { fs.writeFileSync(plan, SKELETON.replace('<project>', path.basename(root))); out.push('PLAN.md: skeleton written - backfill it from the code'); }
   const settingsPath = path.join(root, '.claude', 'settings.json');
-  let settings = {};
-  try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch { /* new */ }
+  let settings = {}, settingsText = '';
+  try { settingsText = fs.readFileSync(settingsPath, 'utf8'); settings = JSON.parse(settingsText); } catch { /* new */ }
+  const settingsBefore = JSON.stringify(settings);
   settings.hooks = settings.hooks || {};
   const entry = { type: 'command', command: hookCmd, timeout: 15 };
-  const has = arr => (arr || []).some(h => (h.hooks || []).some(x => /hook\.js/.test(x.command || '')));
+  // only agentviz's own hook counts: another tool's hook that happens to be called hook.js (cf-route-hook.js) must not hide it
+  const has = arr => (arr || []).some(h => (h.hooks || []).some(isOurHook));
   // an update repoints hooks an earlier install left at another copy (an old folder, the npx cache, a global install)
   let repointed = 0;
   for (const arr of Object.values(settings.hooks)) for (const h of arr || []) for (const x of h.hooks || []) {
@@ -227,17 +270,25 @@ function init() {
   for (const ev of ['PreToolUse', 'PostToolUse']) if (!has(settings.hooks[ev])) (settings.hooks[ev] = settings.hooks[ev] || []).push({ matcher: 'Edit|Write|MultiEdit|NotebookEdit|Bash', hooks: [entry] });
   // SubagentStart / SubagentStop make each subagent an agent of its own (start and end, claims released at the end)
   for (const ev of ['SessionStart', 'Stop', 'SessionEnd', 'SubagentStart', 'SubagentStop']) if (!has(settings.hooks[ev])) (settings.hooks[ev] = settings.hooks[ev] || []).push({ hooks: [entry] });
-  fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
-  out.push(`.claude/settings.json: hooks -> ${hookCmd}`);
+  if (JSON.stringify(settings) !== settingsBefore || !settingsText) {
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    fs.writeFileSync(settingsPath, jsonLike(settings, settingsText));
+    out.push(`.claude/settings.json: hooks -> ${hookCmd}`);
+  }
   const pkgPath = path.join(root, 'package.json');
   if (fs.existsSync(pkgPath)) {
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-    pkg.scripts = pkg.scripts || {};
+    const pkgText = fs.readFileSync(pkgPath, 'utf8');
+    const pkg = JSON.parse(pkgText);
     const bin = inside ? `node ${rel}/cli.js` : 'agentviz';
-    let changed = false;
-    for (const [k, v] of Object.entries({ 'plan:board': `${bin} board`, 'plan:check': `${bin} check`, 'plan:check:tests': `${bin} check --tests` })) if (!pkg.scripts[k]) { pkg.scripts[k] = v; changed = true; }
-    if (changed) { fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n'); out.push('package.json: scripts plan:board, plan:check, plan:check:tests'); }
+    const missing = {};
+    for (const [k, v] of Object.entries({ 'plan:board': `${bin} board`, 'plan:check': `${bin} check`, 'plan:check:tests': `${bin} check --tests` })) if (!(pkg.scripts || {})[k]) missing[k] = v;
+    if (Object.keys(missing).length) {
+      // add the lines in place so the user's diff is three lines, not the whole file; rewrite the JSON only as a fallback
+      let next = addScriptsText(pkgText, missing);
+      if (next === null) { pkg.scripts = { ...(pkg.scripts || {}), ...missing }; next = jsonLike(pkg, pkgText); }
+      fs.writeFileSync(pkgPath, next);
+      out.push('package.json: scripts plan:board, plan:check, plan:check:tests');
+    }
   }
   console.log(out.length ? out.join('\n') : 'nothing to do: already initialised');
   const board = fs.existsSync(pkgPath) ? 'npm run plan:board' : inside ? `node ${rel}/cli.js board --open` : 'agentviz board --open';
